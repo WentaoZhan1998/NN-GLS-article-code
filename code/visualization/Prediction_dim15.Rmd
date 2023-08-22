@@ -1,0 +1,171 @@
+---
+title: "Sim_RMSE_1dim"
+author: "Wentao Zhan"
+date: "2022/3/9"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(message=F, warning = FALSE, echo = TRUE)
+```
+
+## R Markdown
+This week tried simulating on $[0,10]^2$ square and misspecification model.
+
+```{r, echo = FALSE}
+library(tidyverse)
+library(reshape)
+
+library(RColorBrewer)
+group.colors <- c(brewer.pal(9,"Oranges")[c(4, 8, 3)],
+                  brewer.pal(9,"Greens")[c(5)], 
+                  brewer.pal(9,"Blues")[c(4,8)])
+names(group.colors) = c('NNGLS_oracle', 'NN-GLS', 'NN-nsp+kriging',
+                        'NN-nonspatial',  
+                        'NN-latlon', 'NN-splines')
+
+```
+
+Ordering worsens the performance of DK_spline
+```{r}
+list.files('./data')
+p = as.character(15)
+method = '0'
+sigma_vec = c(1, 5, 10)
+phi_vec = c(1, 3, 6)
+tau_vec = as.character(c(1, 10, 25))
+cols = c('tau', 'Method', 'RMSE')
+
+names = c('NN', 'NNGLS_update_krig', 'NN_krig', 'DK', 'DK_spline')
+names_alt = c('NN-nonspatial', 'NN-GLS', 'NN-nsp+kriging', 'NN-latlon', 'NN-splines')
+
+data = data.frame(matrix(ncol = 5))
+colnames(data) = c('variable', 'value', 'sigma', 'phi', 'tau')
+for(i in 1:length(sigma_vec)){
+  for(j in 1:length(phi_vec)){
+    for(k in 1:length(tau_vec)){
+      filename = paste0(c('p', p, 'phi', phi_vec[j], 'sig', sigma_vec[i], 'tau', tau_vec[k], 'mtd', method, '_rand.csv'), collapse = '')
+      if(!(filename %in% list.files('./rand'))){next}
+      df_temp = read.csv(paste0(c('./rand/', filename), collapse = ''))[, names]
+      colnames(df_temp) = names_alt
+      df_temp = melt(df_temp)
+      df_temp$sigma = sigma_vec[i]
+      df_temp$phi = round(phi_vec[j]/sqrt(2), 1)
+      df_temp$tau = tau_vec[k]
+      
+      data = rbind(data, df_temp)
+    }
+  }
+}
+data = data[-1,]
+data_plt = data %>% group_by(sigma, phi, tau, variable) %>% summarise(value = median(value, na.rm = T))
+colnames(data_plt)[4:5] = c('Method', 'MSE') 
+data_plt$Method = factor(data_plt$Method, levels = names_alt)
+ggplot(data_plt, aes(x = tau, y = MSE)) + 
+  geom_bar(aes(fill = Method), position = "dodge", stat="identity") + 
+  scale_fill_manual(values=group.colors[names_alt]) +
+  xlab("tau %") + ylab('log(MSE)') +
+  facet_grid(sigma ~ phi, scales = 'free', labeller = label_both) +
+  theme(legend.text = element_text(size=15), legend.title = element_text(size=20),
+        axis.text=element_text(size=12), axis.title=element_text(size=15),
+        strip.text.x = element_text(size = 10), strip.text.y = element_text(size = 10))
+```
+
+```{r}
+ggsave('RMSE_dim15.png', width = 8, height = 6)
+```
+
+```{r}
+list.files('./data')
+p = as.character(15)
+method = '1'
+sigma_vec = c(1, 5, 10)
+phi_vec = c(1, 3, 6)
+tau_vec = as.character(c(1, 10, 25))
+cols = c('tau', 'Method', 'RMSE')
+
+names = c('NN', 'NNGLS_update_krig', 'NN_krig', 'DK', 'DK_spline')
+names_alt = c('NN-nonspatial', 'NN-GLS', 'NN-nsp+kriging', 'NN-latlon', 'NN-splines')
+
+data = data.frame(matrix(ncol = 5))
+colnames(data) = c('variable', 'value', 'sigma', 'phi', 'tau')
+for(i in 1:length(sigma_vec)){
+  for(j in 1:length(phi_vec)){
+    for(k in 1:length(tau_vec)){
+      filename = paste0(c('p', p, 'phi', phi_vec[j], 'sig', sigma_vec[i], 'tau', tau_vec[k], 'mtd', method, '_rand.csv'), collapse = '')
+      if(!(filename %in% list.files('./rand'))){next}
+      df_temp = read.csv(paste0(c('./rand/', filename), collapse = ''))[, names]
+      colnames(df_temp) = names_alt
+      df_temp = melt(df_temp)
+      df_temp$sigma = sigma_vec[i]
+      df_temp$phi = round(phi_vec[j]/sqrt(2), 1)
+      df_temp$tau = tau_vec[k]
+      
+      data = rbind(data, df_temp)
+    }
+  }
+}
+data = data[-1,]
+data_plt = data %>% group_by(sigma, phi, tau, variable) %>% summarise(value = median(value, na.rm = T))
+colnames(data_plt)[4:5] = c('Method', 'MSE') 
+data_plt$Method = factor(data_plt$Method, levels = names_alt)
+ggplot(data_plt, aes(x = tau, y = MSE)) + 
+  geom_bar(aes(fill = Method), position = "dodge", stat="identity") + 
+  scale_fill_manual(values=group.colors[names_alt]) +
+  xlab("tau %") + ylab('log(MSE)') +
+  facet_grid(sigma ~ phi, scales = 'free', labeller = label_both) +
+  theme(legend.text = element_text(size=15), legend.title = element_text(size=20),
+        axis.text=element_text(size=12), axis.title=element_text(size=15),
+        strip.text.x = element_text(size = 10), strip.text.y = element_text(size = 10))
+```
+```{r}
+ggsave('RMSE_dim15_matern.png', width = 8, height = 6)
+```
+
+```{r}
+list.files('./data')
+p = as.character(15)
+method = '2'
+sigma_vec = c(1, 5, 10)
+phi_vec = c(1, 3, 6)
+tau_vec = as.character(c(1, 10, 25))
+cols = c('tau', 'Method', 'RMSE')
+
+names = c('NN', 'NNGLS_update_krig', 'NN_krig', 'DK', 'DK_spline')
+names_alt = c('NN-nonspatial', 'NN-GLS', 'NN-nsp+kriging', 'NN-latlon', 'NN-splines')
+
+data = data.frame(matrix(ncol = 5))
+colnames(data) = c('variable', 'value', 'sigma', 'phi', 'tau')
+for(i in 1:length(sigma_vec)){
+  for(j in 1:length(phi_vec)){
+    for(k in 1:length(tau_vec)){
+      filename = paste0(c('p', p, 'phi', phi_vec[j], 'sig', sigma_vec[i], 'tau', tau_vec[k], 'mtd', method, '_rand.csv'), collapse = '')
+      if(!(filename %in% list.files('./rand'))){next}
+      df_temp = read.csv(paste0(c('./rand/', filename), collapse = ''))[, names]
+      colnames(df_temp) = names_alt
+      df_temp = melt(df_temp)
+      df_temp$sigma = sigma_vec[i]
+      df_temp$phi = round(phi_vec[j]/sqrt(2), 1)
+      df_temp$tau = tau_vec[k]
+      
+      data = rbind(data, df_temp)
+    }
+  }
+}
+data = data[-1,]
+data_plt = data %>% group_by(sigma, phi, tau, variable) %>% summarise(value = median(value, na.rm = T))
+colnames(data_plt)[4:5] = c('Method', 'MSE') 
+data_plt$Method = factor(data_plt$Method, levels = names_alt)
+ggplot(data_plt, aes(x = tau, y = MSE)) + 
+  geom_bar(aes(fill = Method), position = "dodge", stat="identity") + 
+  scale_fill_manual(values=group.colors[names_alt]) +
+  xlab("tau %") + ylab('log(MSE)') +
+  facet_grid(sigma ~ phi, scales = 'free', labeller = label_both) +
+  theme(legend.text = element_text(size=15), legend.title = element_text(size=20),
+        axis.text=element_text(size=12), axis.title=element_text(size=15),
+        strip.text.x = element_text(size = 10), strip.text.y = element_text(size = 10))
+```
+
+```{r}
+ggsave('RMSE_dim15_fix.png', width = 8, height = 6)
+```

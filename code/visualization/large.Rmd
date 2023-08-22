@@ -1,0 +1,137 @@
+---
+title: "large"
+author: "Wentao Zhan"
+date: "2022/6/26"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+This week tried simulating on $[0,10]^2$ square and misspecification model.
+```{r, echo = FALSE}
+library(tidyverse)
+library(reshape)
+
+library(RColorBrewer)
+group.colors <- c(brewer.pal(9,"Oranges")[c(4,8)],brewer.pal(9,"Greens")[c(5)], brewer.pal(9,"Blues")[c(4,8)])
+names(group.colors) = c('NNGLS_oracle', 'NNGLS_update', 'NN',  'DK', 'DK_spline')
+
+group.colors_t <- c(brewer.pal(9,"Oranges")[c(4,8)],brewer.pal(9,"Greens")[c(5)], brewer.pal(9,"Blues")[c(4)])
+names(group.colors_t) = c('t-total', 't-spatial-est', 't-spatial-est',  't-NN-GLS-train')
+
+```
+
+```{r}
+list.files('./data')
+p = as.character(5)
+method = '0'
+sigma_vec = c(1, 5, 10)
+phi_vec = c(1, 3, 6)
+tau_vec = as.character(c(1, 10, 25))
+cols = c('tau', 'Method', 'RMSE')
+
+names = c('t_BRISC', 't_NNGLS', 't_total')
+names_alt = c('t-spatial-est', 't-NN-GLS-train', 't-total')
+
+data = data.frame(matrix(ncol = 3))
+colnames(data) = c('variable', 'value', 'label')
+for(i in 1:length(sigma_vec)){
+  for(j in 1:length(phi_vec)){
+    for(k in 1:length(tau_vec)){
+      filename = paste0(c('p', p, 'phi', phi_vec[j], 'sig', sigma_vec[i], 'tau', tau_vec[k], 'mtd', method, '_time.csv'), collapse = '')
+      if(!(filename %in% list.files('./data'))){next}
+      df_temp = read.csv(paste0(c('./data/', filename), collapse = ''))[, names]
+      label = read.csv(paste0(c('./data/', filename), collapse = ''))[, 'label']
+      
+      colnames(df_temp) = names_alt
+      df_temp = melt(df_temp)
+      df_temp$label = rep(label, length(names))
+      
+      data = rbind(data, df_temp)
+    }
+  }
+}
+#data_line = data.frame(label = 'linear_ref', size = unique(label), time = 0.005*unique(label))
+data_plt = data %>% group_by(variable, label) %>% summarise(value = median(value))
+colnames(data_plt) = c('label', 'size', 'time') 
+#data_plt = rbind(data_plt, data_line)
+p = ggplot(data_plt, aes(x = log(size), y = log(time))) + 
+  geom_line(aes(color = label), size = 1, position = "dodge", stat="identity") + 
+  scale_color_manual(values=group.colors_t[names_alt]) +
+  xlab("log(sample size)") + ylab('log(computation time)') +
+  theme(legend.text = element_text(size=15), legend.title = element_text(size=20),
+        axis.text=element_text(size=12), axis.title=element_text(size=15))
+for(name in names_alt){
+  p = p + geom_abline(intercept = mean(as.vector(log(data_plt[data_plt$label == name, 'time']) 
+                               - log(data_plt[data_plt$label == name, 'size']))[[1]], na.rm = T), 
+              slope = 1, color=group.colors_t[name], linetype="dashed", size=1)
+}
+p 
+
+```
+```{r}
+ggsave('time_dim5.png', width = 8, height = 6)
+```
+
+```{r}
+for(name in list.files('./data')){
+  data = read.csv(paste0(c('./data/', name), collapse = ''))[,-1]
+  data$t_total = data$t_gen + data$t_NN + data$t_BRISC + data$t_NNGLS
+  head(data,2)
+  write.csv(data, paste0(c('./data/', name), collapse = ''))
+}
+```
+
+```{r}
+list.files('./data')
+p = as.character(1)
+method = '0'
+sigma_vec = c(1, 5, 10)
+phi_vec = c(1, 3, 6)
+tau_vec = as.character(c(1, 10, 25))
+cols = c('tau', 'Method', 'RMSE')
+
+names = c('t_BRISC', 't_NNGLS', 't_total')
+names_alt = c('t-spatial-est', 't-NN-GLS-train', 't-total')
+
+data = data.frame(matrix(ncol = 3))
+colnames(data) = c('variable', 'value', 'label')
+for(i in 1:length(sigma_vec)){
+  for(j in 1:length(phi_vec)){
+    for(k in 1:length(tau_vec)){
+      filename = paste0(c('p', p, 'phi', phi_vec[j], 'sig', sigma_vec[i], 'tau', tau_vec[k], 'mtd', method, '_time.csv'), collapse = '')
+      if(!(filename %in% list.files('./data'))){next}
+      df_temp = read.csv(paste0(c('./data/', filename), collapse = ''))[, names]
+      label = read.csv(paste0(c('./data/', filename), collapse = ''))[, 'label']
+      
+      colnames(df_temp) = names_alt
+      df_temp = melt(df_temp)
+      df_temp$label = rep(label, length(names))
+      
+      data = rbind(data, df_temp)
+    }
+  }
+}
+#data_line = data.frame(label = 'linear_ref', size = unique(label), time = 0.005*unique(label))
+data_plt = data %>% group_by(variable, label) %>% summarise(value = median(value))
+colnames(data_plt) = c('label', 'size', 'time') 
+#data_plt = rbind(data_plt, data_line)
+p = ggplot(data_plt, aes(x = log(size), y = log(time))) + 
+  geom_line(aes(color = label), size = 1, position = "dodge", stat="identity") + 
+  scale_color_manual(values=group.colors_t[names_alt]) +
+  xlab("log(sample size)") + ylab('log(computation time)') +
+  theme(legend.text = element_text(size=15), legend.title = element_text(size=20),
+        axis.text=element_text(size=12), axis.title=element_text(size=15))
+for(name in names_alt){
+  p = p + geom_abline(intercept = mean(as.vector(log(data_plt[data_plt$label == name, 'time']) 
+                               - log(data_plt[data_plt$label == name, 'size']))[[1]], na.rm = T), 
+              slope = 1, color=group.colors_t[name], linetype="dashed", size=1)
+}
+p 
+```
+```{r}
+ggsave('time_dim1.png', width = 8, height = 6)
+```
