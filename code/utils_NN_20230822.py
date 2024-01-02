@@ -1,5 +1,3 @@
-import rpy2.robjects as robjects
-from rpy2.robjects.packages import importr
 import torch
 import torch.nn.functional as F
 import numpy as np
@@ -9,6 +7,8 @@ from scipy.spatial import distance_matrix
 from scipy.optimize import *
 from torch.utils.data import DataLoader, Dataset
 from torch.utils.data.dataset import random_split
+import rpy2.robjects as robjects
+from rpy2.robjects.packages import importr
 import time
 
 def rmvn(m, mu, cov):
@@ -426,7 +426,7 @@ def BRISC_estimation(residual, X, coord):
     coord_r = robjects.FloatVector(coord.transpose().reshape(-1))
     coord_r = robjects.r['matrix'](coord_r, ncol=2)
 
-    if X is None:
+    if X == 'NULL':
         res = BRISC.BRISC_estimation(coord_r, residual_r)
     else:
         Xr = robjects.FloatVector(X.transpose().reshape(-1))

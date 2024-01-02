@@ -1,6 +1,11 @@
 '''
 Run the following code after utils_NN.Simulate_NNGP
 '''
+import os
+os.environ['R_HOME'] = '/users/wzhan/anaconda3/envs/torch_geom/lib/R'
+import rpy2.robjects as robjects
+from rpy2.robjects.packages import importr
+import utils_NN_copy as utils_NN
 import sys
 import torch
 import numpy as np
@@ -14,7 +19,6 @@ os.environ['R_HOME'] = 'C:\\Program Files\\R\\R-4.1.0'
 os.environ['R_HOME']
 os.environ['R_LIBS_USER'] = 'C:\\Users\\15211\\Documents\\R\\win-library\\4.1'
 '''
-import utils_NN
 from scipy.stats import multivariate_normal
 import time
 
@@ -115,7 +119,7 @@ def order(X, Y, coord):
     coord_new = coord[order, :]
     return X_new, Y_new, coord_new
 
-for j in range(500):
+for j in range(10):
     print(j)
     np.random.seed(j)
     if method == '2':
@@ -130,6 +134,8 @@ for j in range(500):
     id = range(n_train)
     mask = np.zeros(n, dtype=bool)
     mask[id] = True
+
+    #mask = ~data.test_mask.detach().numpy()
 
     '''
     n_temp = 10
@@ -239,7 +245,7 @@ for j in range(500):
     residual_train = model0(torch.from_numpy(X_train).float()).reshape(-1) - torch.from_numpy(Y_train)
     residual_train = residual_train.detach().numpy()
     theta_hat = utils_NN.BRISC_estimation(residual_train, X_train, s_train)
-    theta_hat0 = theta_hat
+    theta_hat0 = theta_hat.copy()
     # print("RMSE is %f" % utils_NN.RMSE_model(model0, X, Y, mask, coord, theta_hat))
     RMSE0 = np.append(RMSE0, utils_NN.RMSE_model(model0, X, Y, mask, coord, theta_hat))
     #######################################################################################################################
@@ -278,12 +284,12 @@ for j in range(500):
     MISE_test2 = np.append(MISE_test2, losses_test2[torch.argmin(torch.stack(val_losses_test2))].detach().numpy())
     RMSE_test2 = np.append(RMSE_test2, utils_NN.RMSE_model(model_test, X, Y, mask, coord, theta_hat))
 
-name = "p%i"%p + 'phi%i'%phi + "sig%i"%(theta[0]) + "tau%i"%(int(100*tau)) + 'mtd' + method
-df_MISE = pd.DataFrame(
-        {'MISE_GLS': MISE_test, 'MISE_GLS_update': MISE_test2,
-         'MISE_DK1': MISE_DK1, 'MISE_DK2': MISE_DK2, 'MISE_DK3': MISE_DK3,})
-df_MISE.to_csv(".//simulation//MISE//1dim//" + name + '_rand.csv')
-df_RMSE = pd.DataFrame(
-        {'NN_krig': RMSE0, 'NNGLS_krig': RMSE_test, 'NNGLS_update_krig': RMSE_test2,
-         'NN': RMSE_DK1, 'DK': RMSE_DK2, 'DK_spline': RMSE_DK3,})
-df_RMSE.to_csv(".//simulation//RMSE//1dim//" + name + '_rand.csv')
+    name = "p%i"%p + 'phi%i'%phi + "sig%i"%(theta[0]) + "tau%i"%(int(100*tau)) + 'mtd' + method
+    df_MISE = pd.DataFrame(
+            {'MISE_GLS': MISE_test, 'MISE_GLS_update': MISE_test2,
+             'MISE_DK1': MISE_DK1, 'MISE_DK2': MISE_DK2, 'MISE_DK3': MISE_DK3,})
+    df_MISE.to_csv(".//simulation//MISE//1dim//" + name + '_rand.csv')
+    df_RMSE = pd.DataFrame(
+            {'NN_krig': RMSE0, 'NNGLS_krig': RMSE_test, 'NNGLS_update_krig': RMSE_test2,
+             'NN': RMSE_DK1, 'DK': RMSE_DK2, 'DK_spline': RMSE_DK3,})
+    df_RMSE.to_csv(".//simulation//RMSE//1dim//" + name + '_rand.csv')
