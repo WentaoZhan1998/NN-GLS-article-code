@@ -1,0 +1,147 @@
+---
+title: "large"
+author: "Wentao Zhan"
+date: "2022/6/26"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+# 1010: sample size 1000/500, ordered
+# 1011: sample size 2000/1000, unordered, only for Friedman
+# 1018: added CI and PI, size 1000/500
+# 1024: updated GAMGLS and sparse implementation. (only 5 dim now)
+
+## R Markdown
+This week tried simulating on $[0,10]^2$ square and misspecification model.
+```{r, echo = FALSE}
+library(tidyverse)
+library(reshape)
+
+library(RColorBrewer)
+group.colors <- c(brewer.pal(9,"Oranges")[c(4,8)],brewer.pal(9,"Greens")[c(5)], brewer.pal(9,"Blues")[c(4,8)])
+names(group.colors) = c('NNGLS_oracle', 'NNGLS_update', 'NN',  'DK', 'DK_spline')
+
+group.colors_t <- c(brewer.pal(9,"Oranges")[c(4,8)],brewer.pal(9,"Greens")[c(5)], brewer.pal(9,"Blues")[c(4)])
+names(group.colors_t) = c('t-total', 't-spatial-est', 't-spatial-est',  't-NN-GLS-train')
+
+```
+
+```{r}
+p = list()
+data = read.csv('friedmann1000mtd0_theta.csv')[,-1]
+data$phi0 = round(data$phi0,2)
+data$value0 = data$phi0*data$sigma0
+
+data$value = data$sigma*data$phi
+p = ggplot(data, aes(x  = value0, y = value, color = method)) +
+  geom_boxplot() + geom_hline(aes(yintercept=value0)) +
+  facet_grid(. ~ value0, scales = 'free', labeller = label_both) + 
+  ggtitle('sigma*phi')
+
+p
+```
+
+```{r}
+p = list()
+date = '20231110'
+data = read.csv(paste0(date, '/', 'friedmann1000mtd0_theta.csv'))[,-1]
+tau = 0.01
+data  = data[data$tau0 == tau,]
+data$phi0 = round(data$phi0,2)
+
+data = filter(data, data$sigma <= 10 & data$phi <20)
+
+data$value = data$sigma
+p[[1]] = ggplot(data, aes(x = phi0, y = sigma, color = method)) +
+  geom_boxplot() + geom_hline(aes(yintercept=sigma0)) +
+  facet_grid(sigma0 ~ phi0, scales = 'free', labeller = label_both) + 
+  ggtitle('sigma')
+
+data$value = data$phi
+p[[2]] = ggplot(data, aes(x = phi0,y = phi, color = method)) +
+  geom_boxplot() + geom_hline(aes(yintercept=phi0)) +
+  facet_grid(sigma0 ~phi0, scales = 'free', labeller = label_both) + RotatedAxis() +
+  ggtitle('phi')
+
+data$value0 = data$phi0*data$sigma0
+data$value = data$sigma*data$phi
+p[[3]] = ggplot(data, aes(x  = 'methods', y = value, color = method)) +
+  geom_boxplot() + geom_hline(aes(yintercept=value0)) +
+  facet_grid(value0 ~ ., scales = 'free', labeller = label_both) + 
+  ggtitle('sigma*phi')
+
+#cowplot::plot_grid(p[[1]], p[[2]], p[[3]], ncol = 2, labels = "AUTO")
+
+ggarrange(p[[1]], p[[2]], p[[3]], common.legend = TRUE)
+```
+```{r}
+ggsave(paste0('friedmann1000', 'tau', as.character(tau), date, '.png'), width = 6, height = 8)
+#grid.arrange(p[[1]], p[[2]], p[[3]], ncol = 2, top = "Title of the page") 
+```
+
+
+```{r}
+names_alt = c('NN-nonspatial', 'NN-GLS')
+group_colors_par = group.colors[c(1,4)]
+names(group_colors_par) = names_alt
+for(date in c('20231110')){
+  for(tau in c(0.1, 0.01)){
+    p = list()
+    #date = '20231025'
+    fun = 'friedman'
+    data = read.csv(paste0(date, '/', fun, 'n1000mtd0_theta.csv'))[,-1]
+    data$sigma_sq0 = data$sigma0
+    data$Method = data$method
+    #tau = 0.1
+    data  = data[data$tau0 == tau,]
+    data$phi0 = round(data$phi0,1)
+    
+    data = filter(data, data$sigma <= 10 & data$phi <20)
+    data = data %>% filter(data$Method != 'NNGLS_update2')
+    data$Method[data$Method == 'NNGLS_update1'] = 'NN-GLS'
+    data$Method[data$Method == 'NN_BRISC'] = 'NN-nonspatial'
+    data$Method = factor(data$Method, levels = names_alt)
+    
+    data$value = data$sigma
+    p[[1]] = ggplot(data, aes(x = phi0, y = sigma, fill = Method)) +
+      geom_boxplot() + geom_hline(aes(yintercept=sigma_sq0)) +
+      scale_fill_manual(values=group_colors_par[names_alt]) +
+      facet_grid(sigma_sq0 ~ phi0, scales = 'free', labeller = label_both) + 
+      ggtitle('sigma') + 
+  theme(legend.text = element_text(size=15), legend.title = element_text(size=20),
+        axis.text=element_text(size=12), axis.title=element_text(size=15),
+        strip.text.x = element_text(size = 13), strip.text.y = element_text(size = 13))
+    
+    data$value = data$phi
+    p[[2]] = ggplot(data, aes(x = phi0,y = phi, fill = Method)) +
+      geom_boxplot() + geom_hline(aes(yintercept=phi0)) +
+      scale_fill_manual(values=group_colors_par) +
+      facet_grid(sigma_sq0 ~phi0, scales = 'free', labeller = label_both) + RotatedAxis() +
+      ggtitle('phi')+ 
+  theme(legend.text = element_text(size=15), legend.title = element_text(size=20),
+        axis.text=element_text(size=12), axis.title=element_text(size=15),
+        strip.text.x = element_text(size = 13), strip.text.y = element_text(size = 13))
+    
+    data$value0 = data$phi0*data$sigma_sq0
+    data$value = data$sigma*data$phi
+    p[[3]] = ggplot(data, aes(x  = 'Methods', y = value, fill = Method)) +
+      geom_boxplot() + geom_hline(aes(yintercept=value0)) +
+      facet_grid(sigma_sq0 ~ phi0, scales = 'free', labeller = label_both) + 
+      ggtitle('sigma*phi')+ 
+  theme(legend.text = element_text(size=15), legend.title = element_text(size=20),
+        axis.text=element_text(size=12), axis.title=element_text(size=15),
+        strip.text.x = element_text(size = 13), strip.text.y = element_text(size = 13))
+    
+    #cowplot::plot_grid(p[[1]], p[[2]], p[[3]], ncol = 2, labels = "AUTO")
+    
+    ggarrange(p[[1]], p[[2]], nrow = 2, common.legend = TRUE)
+    
+    ggsave(paste0(fun, 'n1000', 'tau', as.character(tau), date, '.png'), width = 6, height = 8)
+  }
+}
+
+```

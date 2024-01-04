@@ -9,18 +9,46 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
+
+# 1010: sample size 1000/500, ordered
+# 1011: sample size 2000/1000, unordered, only for Friedman
+# 1018: added CI and PI, size 1000/500
+# 1024: updated GAMGLS and sparse implementation. (only 5 dim now)
+
 ## R Markdown
 This week tried simulating on $[0,10]^2$ square and misspecification model.
 ```{r, echo = FALSE}
 library(tidyverse)
 library(reshape)
-
 library(RColorBrewer)
-group.colors <- c(brewer.pal(9,"Oranges")[c(4,8)],brewer.pal(9,"Greens")[c(5)], brewer.pal(9,"Blues")[c(4,8)])
-names(group.colors) = c('NNGLS_oracle', 'NNGLS_update', 'NN',  'DK', 'DK_spline')
 
-group.colors_t <- c(brewer.pal(9,"Oranges")[c(4,8)],brewer.pal(9,"Greens")[c(5)], brewer.pal(9,"Blues")[c(4)])
-names(group.colors_t) = c('t-total', 't-spatial-est', 't-spatial-est',  't-NN-GLS-train')
+group.colors <- c(brewer.pal(9,"Oranges")[c(4, 8, 3)],
+                  brewer.pal(9,"Greens")[c(5)], 
+                  brewer.pal(9,"Blues")[c(4,8)])
+names(group.colors) = c('NNGLS_oracle', 'NN-GLS', 'NN-nsp+kriging',
+                        'NN-nonspatial',  
+                        'NN-latlon', 'NN-spline')
+
+group.colors <- c(brewer.pal(9,"YlOrRd")[c(3, 4, 5, 8)],
+                       brewer.pal(9,"Reds")[c(3)],
+                       brewer.pal(9,"Purples")[c(6)], 
+                       brewer.pal(9,"Blues")[c(4,6,7)],
+                       brewer.pal(8,"Set2")[c(5)], brewer.pal(9,"Greens")[c(7)])
+names(group.colors) = c('NN-nonspatial', 'NN-latlon', 'NN-splines', 'NN-GLS',
+                             'NNGLS_oracle',
+                             'Linear-spatial',
+                             'GAM', 'GAM-latlon', 'GAMGLS',
+                             'RF', 'RFGLS')
+
+#group.colors <- c(brewer.pal(9,"Oranges")[c(4,8)],brewer.pal(9,"Greens")[c(5)], brewer.pal(9,"Blues")[c(4,8)])
+#names(group.colors) = c('NNGLS_oracle', 'NNGLS_update', 'NN',  'DK', 'DK_spline')
+
+group.colors_t <- c(brewer.pal(9,"YlOrRd")[c(3, 8)],
+                    brewer.pal(9,"PiYG")[c(3)], brewer.pal(9,"BrBG")[c(8)],
+                    brewer.pal(9,"Purples")[c(7)])
+names(group.colors_t) = c('t-NN-train', 't-NN-GLS-train',
+                          't-simulation', 't-kriging', 
+                          't-BRISC')
 
 ```
 
@@ -35,6 +63,25 @@ cols = c('tau', 'Method', 'RMSE')
 
 names = c('t_BRISC', 't_NNGLS', 't_total')
 names_alt = c('t-spatial-est', 't-NN-GLS-train', 't-total')
+
+df_temp = read.csv('largephi3sig1tau1mtd0_t_new.csv')[,-1]
+df_temp = melt(df_temp, id.var ='Size')
+data_plt = df_temp %>% group_by(variable, Size) %>% summarise(value = median(value))
+colnames(data_plt) = c('label', 'size', 'time') 
+
+p = ggplot(data_plt, aes(x = log(size), y = log(time))) + 
+  geom_line(aes(color = label), size = 1, position = "dodge", stat="identity") + 
+  xlab("log(sample size)") + ylab('log(computation time)') + 
+  theme(legend.text = element_text(size=15), legend.title = element_text(size=20),
+        axis.text=element_text(size=12), axis.title=element_text(size=15))
+
+for(name in unique(data_plt$label)){
+  p = p + geom_abline(intercept = mean(as.vector(log(data_plt[data_plt$label == name, 'time']) 
+                               - log(data_plt[data_plt$label == name, 'size']))[[1]], na.rm = T), 
+              slope = 1, linetype="dashed", size=0.05)
+}
+print(p)
+
 
 data = data.frame(matrix(ncol = 3))
 colnames(data) = c('variable', 'value', 'label')
@@ -117,21 +164,306 @@ for(i in 1:length(sigma_vec)){
 }
 #data_line = data.frame(label = 'linear_ref', size = unique(label), time = 0.005*unique(label))
 data_plt = data %>% group_by(variable, label) %>% summarise(value = median(value))
-colnames(data_plt) = c('label', 'size', 'time') 
+colnames(data_plt) = c('Methods', 'size', 'time') 
 #data_plt = rbind(data_plt, data_line)
 p = ggplot(data_plt, aes(x = log(size), y = log(time))) + 
-  geom_line(aes(color = label), size = 1, position = "dodge", stat="identity") + 
+  geom_line(aes(color = Methods), size = 1, position = "dodge", stat="identity") + 
   scale_color_manual(values=group.colors_t[names_alt]) +
-  xlab("log(sample size)") + ylab('log(computation time)') +
+  xlab("sample size") + xlab("log(sample size)") + ylab('log(computation time)') +
   theme(legend.text = element_text(size=15), legend.title = element_text(size=20),
         axis.text=element_text(size=12), axis.title=element_text(size=15))
 for(name in names_alt){
-  p = p + geom_abline(intercept = mean(as.vector(log(data_plt[data_plt$label == name, 'time']) 
-                               - log(data_plt[data_plt$label == name, 'size']))[[1]], na.rm = T), 
+  p = p + geom_abline(intercept = mean(as.vector(log(data_plt[data_plt$Methods == name, 'time']) 
+                               - log(data_plt[data_plt$Methods == name, 'size']))[[1]], na.rm = T), 
               slope = 1, color=group.colors_t[name], linetype="dashed", size=1)
 }
 p 
 ```
 ```{r}
 ggsave('time_dim1.png', width = 8, height = 6)
+```
+
+```{r}
+filename = 'large_sparseB_explore_t.csv'
+names = c('BRISC', 'GAM', 'GAMGLS', 'RF', 'RFGLS', 'NN', 'NNGLS', 'Size')
+names_alt = c('Linear-spatial', 'GAM', 'GAMGLS', 'RF', 'RFGLS', 'NN-nonspatial', 'NN-GLS', 'Size')
+
+data = read.csv(paste0(c(filename), collapse = ''))[, -1]
+data$NN = read.csv('large_sparseB_explore_comp_NN_t.csv')$NN[1:12]
+data$RFGLS[data$Size==2000] = 1034
+data = data[,names]
+colnames(data) = names_alt
+data = melt(data, id.vars = 'Size')
+data_plt = data %>% group_by(Size, variable) %>% summarise(value = median(value))
+data_plt  = data_plt %>% filter(variable != 'RFGLS'|Size<=2000)
+colnames(data_plt) = c('size', 'Methods', 'time') 
+
+names_aux = c('NN-GLS', 'GAM')
+
+p = ggplot(data_plt, aes(x = size, y = time)) + 
+  geom_line(aes(color = Methods), size = 2, position = "dodge", stat="identity") + 
+  scale_y_log10() + scale_x_log10() +
+  scale_color_manual(values=group.colors[names_alt]) +
+  scale_fill_discrete(name = "Methods") + xlab("sample size") + ylab('computation time') +
+  theme(legend.text = element_text(size=15), legend.title = element_text(size=20),
+        axis.text=element_text(size=12), axis.title=element_text(size=15))
+for(name in names_aux){
+  p = p + geom_abline(intercept = mean(as.vector(
+    log(data_plt[data_plt$Methods == name, 'time'], 10) 
+    - log(data_plt[data_plt$Methods == name, 'size'], 10))[[1]], na.rm = T), 
+              slope = 1, alpha = 0.5, linetype="dashed", size=1)
+}
+p
+ggsave(paste0('runningtime_compare.png'), width = 10, height = 6)
+```
+
+```{r}
+path = "/Users/zhanwentao/Documents/Abhi/NN/Simulation/large/tuning/"
+filename = 'SparseB_fixed-batch_1000epochcut_0.01lr_fixed-domain_t.csv'
+filename2 = 'SparseB_flexible-batch_1000epochcut_0.1lr_t.csv'
+filename3 = 'SparseB_flexible-batch_1000epochcut_0.1lr_GAM_t.csv'
+data = read.csv(paste0(c(path, 'fixed/', filename), collapse = ''))[, -1]
+#data$RFGLS[data$Size==2000] = 1034
+data = data %>% melt(id.vars = 'Size') %>% filter(! variable %in% c('NN', 'GAMGLS') )
+#data_NN = read.csv(paste0(c(path, 'flexible/', filename2), collapse = ''))[, -1]
+#data_NN = data_NN %>% melt(id.vars = 'Size') %>% filter(variable == 'NN')
+data_NN = read.csv(paste0(c(path, 'fixed/', filename), collapse = ''))[, -1]
+data_NN = data_NN %>% melt(id.vars = 'Size') %>% filter(variable == 'NN')
+data_GAM= read.csv(paste0(c(path, '', filename3), collapse = ''))[, -1]
+data_GAM= data_GAM %>% melt(id.vars = 'Size') %>% filter(variable == 'GAMGLS')
+
+data = rbind(data, data_NN, data_GAM, c(1))
+
+names = c('BRISC', 'GAM', 'GAMGLS', 'RF', 'RFGLS', 'NN', 'NNGLS', 'Size')
+names_alt = c('Linear-spatial', 'GAM', 'GAMGLS', 'RF', 'RFGLS', 'NN-nonspatial', 'NN-GLS', 'Size')
+df_ref = data.frame(variable = names, Methods = names_alt)
+
+
+data = data %>% filter(variable %in% names) %>% left_join(df_ref, by = 'variable')
+
+data_plt = data %>% group_by(Size, Methods) %>% summarise(value = median(value))
+data_plt = data_plt %>% filter(Methods != 'RFGLS'|Size<=2000)
+colnames(data_plt) = c('size', 'Methods', 'time') 
+
+names_aux = c('NN-GLS', 'GAM')
+
+p = ggplot(data_plt, aes(x = size, y = time)) + 
+  geom_line(aes(color = Methods), size = 2, position = "dodge", stat="identity") + 
+  scale_y_log10() + scale_x_log10() +
+  scale_color_manual(values=group.colors[names_alt]) +
+  scale_fill_discrete(name = "Methods") + xlab("sample size") + ylab('time') +
+  theme(legend.text = element_text(size=20), legend.title = element_text(size=22),
+        axis.text=element_text(size=18), axis.title=element_text(size=20),
+        strip.text.x = element_text(size = 18), strip.text.y = element_text(size = 18))
+for(name in names_aux){
+  p = p + geom_abline(intercept = mean(as.vector(
+    log(data_plt[data_plt$Methods == name, 'time'], 10) 
+    - log(data_plt[data_plt$Methods == name, 'size'], 10))[[1]], na.rm = T), 
+              slope = 1, alpha = 0.5, linetype="dashed", size=1)
+}
+p
+ggsave(paste0('runningtime_compare.png'), width = 10, height = 6)
+```
+
+```{r}
+path = "/Users/zhanwentao/Documents/Abhi/NN/Simulation/large/tuning/"
+filename = 'SparseB_fixed-batch_10epochcut_0.01lr_fixed-domain_t.csv'
+filename2 = 'SparseB_flexible-batch_10epochcut_0.1lr_t.csv'
+filename3 = 'SparseB_flexible-batch_1000epochcut_0.1lr_GAM_t.csv'
+data = read.csv(paste0(c(path, 'fixed/', filename), collapse = ''))[, -1]
+#data$RFGLS[data$Size==2000] = 1034
+data = data %>% melt(id.vars = 'Size') %>% filter(! variable %in% c('NN', 'GAMGLS') )
+#data_NN = read.csv(paste0(c(path, 'flexible/', filename2), collapse = ''))[, -1]
+#data_NN = data_NN %>% melt(id.vars = 'Size') %>% filter(variable == 'NN')
+data_NN = read.csv(paste0(c(path, 'fixed/', filename), collapse = ''))[, -1]
+data_NN = data_NN %>% melt(id.vars = 'Size') %>% filter(variable == 'NN')
+data_GAM= read.csv(paste0(c(path, '', filename3), collapse = ''))[, -1]
+data_GAM= data_GAM %>% melt(id.vars = 'Size') %>% filter(variable == 'GAMGLS')
+
+data = rbind(data, data_NN, data_GAM, c(1))
+
+names = c('NN', 'NNGLS', 'Size')
+names_alt = c('NN-nonspatial', 'NN-GLS', 'Size')
+df_ref = data.frame(variable = names, Methods = names_alt)
+
+
+data = data %>% filter(variable %in% names) %>% left_join(df_ref, by = 'variable')
+
+data_plt = data %>% group_by(Size, Methods) %>% summarise(value = median(value))
+data_plt = data_plt %>% filter(Methods != 'RFGLS'|Size<=2000)
+colnames(data_plt) = c('size', 'Methods', 'time') 
+
+names_aux = c('NN-GLS', 'NN-nonspatial')
+
+p = ggplot(data_plt, aes(x = size, y = time)) + 
+  geom_line(aes(color = Methods), size = 2, position = "dodge", stat="identity") + 
+  scale_y_log10() + scale_x_log10() +
+  scale_color_manual(values=group.colors[names_alt]) +
+  scale_fill_discrete(name = "Methods") + xlab("sample size") + ylab('time') +
+  theme(legend.text = element_text(size=20), legend.title = element_text(size=22),
+        axis.text=element_text(size=18), axis.title=element_text(size=20),
+        strip.text.x = element_text(size = 18), strip.text.y = element_text(size = 18))
+for(name in names_aux){
+  p = p + geom_abline(intercept = mean(as.vector(
+    log(data_plt[data_plt$Methods == name, 'time'], 10) 
+    - log(data_plt[data_plt$Methods == name, 'size'], 10))[[1]], na.rm = T), 
+              slope = 1, alpha = 0.5, linetype="dashed", size=1)
+}
+p
+ggsave(paste0('runningtime_compare_restricted.png'), width = 10, height = 6)
+```
+
+```{r}
+filename = 'large_sparseB_explore_t.csv'
+names = c('NN', 'NNGLS', 'Sim', 'Krig', 'BRISC', 'Size')
+names_alt = c('t-NN-train', 't-NN-GLS-train', 't-simulation', 't-kriging', 't-BRISC', 'Size')
+
+data = read.csv(paste0(c(filename), collapse = ''))[, -1] 
+data$NN = read.csv('large_sparseB_explore_comp_NN_t.csv')$NN[1:12]
+data = data[,names]
+colnames(data) = names_alt
+data = melt(data, id.vars = 'Size')
+data_plt = data %>% group_by(Size, variable) %>% summarise(value = median(value))
+data_plt  = data_plt %>% filter(variable != 'RFGLS'|Size<2000)
+colnames(data_plt) = c('size', 'Methods', 'time') 
+
+names_aux = c('t-NN-GLS-train', 't-NN-train')
+
+p = ggplot(data_plt, aes(x = size, y = time)) + 
+  geom_line(aes(color = Methods), size = 2, position = "dodge", stat="identity") + 
+  scale_y_log10() + scale_x_log10() +
+  scale_color_manual(values=group.colors_t[names_alt]) +
+  scale_fill_discrete(name = "Methods") + xlab("sample size") + ylab('computation time') +
+  theme(legend.text = element_text(size=20), legend.title = element_text(size=22),
+        axis.text=element_text(size=18), axis.title=element_text(size=20),
+        strip.text.x = element_text(size = 18), strip.text.y = element_text(size = 18))
+for(name in names_aux){
+  p = p + geom_abline(intercept = mean(as.vector(
+    log(data_plt[data_plt$Methods == name, 'time'], 10) 
+    - log(data_plt[data_plt$Methods == name, 'size'], 10))[[1]], na.rm = T), 
+              slope = 1, alpha = 0.5, linetype="dashed", size=1)
+}
+p
+ggsave(paste0('runningtime_simple.png'), width = 10, height = 6)
+```
+
+```{r}
+filename = 'large_MISEphi3sig1tau1mtd0_MISE.csv'
+data = read.csv(paste0(c(filename), collapse = ''))[, -1]
+data$Size = read.csv('large_MISEphi3sig1tau1mtd0_t.csv')$Size[1:nrow(data)]
+data$NN = read.csv('largephi3sig1tau1mtd0_comp_NN_MISE.csv')$NN[1:nrow(data)]
+data$GAM[1:95] = read.csv('largephi3sig1tau1mtd0_comp_GAM_MISE.csv')$GAM[1:95]
+data$GAMGLS[1:95] = read.csv('largephi3sig1tau1mtd0_comp_GAM_MISE.csv')$GAMGLS[1:95]
+
+names = c('BRISC', 'GAM', 'GAMGLS', 'RF', 'RFGLS', 'NN', 'NNGLS', 'Size')
+names_alt = c('Linear-spatial', 'GAM', 'GAMGLS', 'RF', 'RFGLS', 'NN-nonspatial', 'NN-GLS', 'Size')
+data = data[,names]
+colnames(data) = names_alt
+
+data = melt(data, id.vars = 'Size')
+data_plt = data %>% group_by(Size, variable) %>% summarise(value = median(value))
+data_plt  = data_plt %>% filter(variable != 'RFGLS'|Size<2000)
+colnames(data_plt) = c('size', 'Methods', 'MISE') 
+
+#names_alt = c('NNGLS', 'GAM')
+
+p = ggplot(data_plt, aes(x = size, y = MISE)) + 
+  geom_line(aes(color = Methods), size = 2, position = "dodge", stat="identity") + 
+  scale_y_log10() + scale_x_log10() +
+  scale_color_manual(values=group.colors[names_alt]) +
+  scale_fill_discrete(name = "Methods") + xlab("sample size") + ylab('MISE') +
+  theme(legend.text = element_text(size=18), legend.title = element_text(size=20),
+        axis.text=element_text(size=15), axis.title=element_text(size=18),
+        strip.text.x = element_text(size = 13), strip.text.y = element_text(size = 13))
+#for(name in names_alt){
+#  p = p + geom_abline(intercept = mean(as.vector(
+#    log(data_plt[data_plt$label == name, 'time'], 10) 
+#    - log(data_plt[data_plt$label == name, 'size'], 10))[[1]], na.rm = T), 
+#              slope = 1, alpha = 0.5, linetype="dashed", size=1)
+#}
+p
+#ggsave(paste0('MISE_compare.png'), width = 10, height = 6)
+
+```
+
+```{r}
+path = "/Users/zhanwentao/Documents/Abhi/NN/Simulation/large/tuning/"
+filename = 'SparseB_fixed-batch_1000epochcut_0.01lr_fixed-domain_MISE.csv'
+#filename2 = 'SparseB_flexible-batch_1000epochcut_0.1lr_MISE.csv'
+filename2 = 'SparseB_fixed-batch_1000epochcut_0.01lr_fixed-domain_MISE.csv'
+filename3 = 'SparseB_flexible-batch_1000epochcut_0.1lr_GAM_MISE.csv'
+data = read.csv(paste0(c(path, 'fixed/', filename), collapse = ''))[, -1]
+data = data %>% melt(id.vars = 'Size') %>% filter(! variable %in% c('NN', 'GAMGLS') )
+#data_NN = read.csv(paste0(c(path, 'flexible/', filename2), collapse = ''))[, -1]
+data_NN = read.csv(paste0(c(path, 'fixed/', filename2), collapse = ''))[, -1]
+data_NN = data_NN %>% melt(id.vars = 'Size') %>% filter(variable == 'NN')
+data_GAM= read.csv(paste0(c(path, '', filename3), collapse = ''))[, -1]
+data_GAM= data_GAM %>% melt(id.vars = 'Size') %>% filter(variable == 'GAMGLS')
+
+data = rbind(data, data_NN, data_GAM)
+
+names = c('BRISC', 'GAM', 'GAMGLS', 'RF', 'RFGLS', 'NN', 'NNGLS', 'Size')
+names_alt = c('Linear-spatial', 'GAM', 'GAMGLS', 'RF', 'RFGLS', 'NN-nonspatial', 'NN-GLS', 'Size')
+df_ref = data.frame(variable = names, Methods = names_alt)
+
+data = left_join(data, df_ref, by = 'variable')
+
+data_plt = data %>% group_by(Size, Methods) %>% summarise(value = median(value))
+data_plt$value[data_plt$Methods == 'NN-GLS'][6:7] = data_plt$value[data_plt$Methods == 'NN-GLS'][7:6]
+data_plt = data_plt %>% filter(Methods != 'RFGLS'|Size<2000)
+colnames(data_plt) = c('size', 'Methods', 'MISE') 
+
+#names_alt = c('NNGLS', 'GAM')
+
+p = ggplot(data_plt, aes(x = size, y = MISE)) + 
+  geom_line(aes(color = Methods), size = 2, position = "dodge", stat="identity") + 
+  scale_y_log10() + scale_x_log10() +
+  scale_color_manual(values=group.colors[names_alt]) +
+  scale_fill_discrete(name = "Methods") + xlab("sample size") + ylab('MISE') +
+  theme(legend.text = element_text(size=20), legend.title = element_text(size=22),
+        axis.text=element_text(size=18), axis.title=element_text(size=20),
+        strip.text.x = element_text(size = 18), strip.text.y = element_text(size = 18))
+#for(name in names_alt){
+#  p = p + geom_abline(intercept = mean(as.vector(
+#    log(data_plt[data_plt$label == name, 'time'], 10) 
+#    - log(data_plt[data_plt$label == name, 'size'], 10))[[1]], na.rm = T), 
+#              slope = 1, alpha = 0.5, linetype="dashed", size=1)
+#}
+p
+ggsave(paste0('MISE_compare.png'), width = 10, height = 6)
+
+```
+
+```{r}
+filename = 'test_NNGLS_t.csv'
+data = read.csv(paste0(c(filename), collapse = ''))[, -1]
+
+names = c('model', 'loss', 'backward', 'optimize', 'Size')
+names_alt = c('model', 'loss', 'backward', 'ooptimize', 'Size')
+data = data[,names]
+colnames(data) = names_alt
+
+data = melt(data, id.vars = 'Size')
+data_plt = data %>% group_by(Size, variable) %>% summarise(value = median(value))
+data_plt  = data_plt
+colnames(data_plt) = c('size', 'Methods', 'time') 
+
+names_alt = c('loss', 'optimize')
+
+p = ggplot(data_plt, aes(x = size, y = time)) + 
+  geom_line(aes(color = Methods), size = 2, position = "dodge", stat="identity") + 
+  scale_y_log10() + scale_x_log10() +
+  #scale_color_manual(values=group.colors_t2[names_alt]) +
+  scale_fill_discrete(name = "Methods") + xlab("sample size") + ylab('computation time') +
+  theme(legend.text = element_text(size=20), legend.title = element_text(size=22),
+        axis.text=element_text(size=18), axis.title=element_text(size=20),
+        strip.text.x = element_text(size = 18), strip.text.y = element_text(size = 18))
+for(name in names_alt){
+  p = p + geom_abline(intercept = mean(as.vector(
+    log(data_plt[data_plt$Methods == name, 'time'], 10) 
+    - log(data_plt[data_plt$Methods == name, 'size'], 10))[[1]], na.rm = T), 
+              slope = 1, alpha = 0.5, linetype="dashed", size=1)
+}
+p
+ggsave(paste0('runningtime_decomp.png'), width = 10, height = 6)
 ```
