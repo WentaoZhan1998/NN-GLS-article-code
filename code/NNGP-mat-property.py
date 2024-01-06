@@ -1,3 +1,5 @@
+#### This file produces simulation results for parameter estimation in section S3.2
+
 import torch
 import sys
 sys.path.append("/Users/zhanwentao/Documents/Abhi/NN")
@@ -17,7 +19,7 @@ def order(X, Y, coord):
     return X_new, Y_new, coord_new
 
 sigma = 1
-phi = 4
+phi = 3
 tau = 0.01
 method = '0'
 theta = [sigma, phi / np.sqrt(2), tau]
@@ -34,14 +36,13 @@ X, Y, coord = order(X, Y, coord)
 det = np.empty(0)
 eigen_max = np.empty(0)
 eigen_min = np.empty(0)
-for nn in np.arange(2, 250):
+for nn in np.arange(1, 250):
     print(nn)
     I_B, F_diag, rank, cov = utils_NN.bf_from_theta(theta, coord, nn, sparse=False)
     I_B = I_B.detach().numpy()
     F_diag = F_diag.detach().numpy()
 
     cov_sqrt = np.linalg.cholesky(cov)
-    #np.max(np.matmul(cov_sqrt, cov_sqrt.T) - cov)
     E_sqrt = np.matmul((np.sqrt(np.reciprocal(F_diag)) * I_B.T).T, cov_sqrt)
     E = np.matmul(E_sqrt.T, E_sqrt)
 

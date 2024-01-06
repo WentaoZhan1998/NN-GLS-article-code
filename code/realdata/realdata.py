@@ -1,29 +1,27 @@
+#### This file produces simulation results for prediction, and prediction interval for the real data
+#### Include Figures S27, S29, S30, 3(b).
+
 import os
-os.environ['R_HOME'] = '/users/wzhan/anaconda3/envs/torch_geom/lib/R'
+#os.environ['R_HOME'] = {the R lib path where necessary packages are installed}
 import rpy2.robjects as robjects
 from rpy2.robjects.packages import importr
-import utils_NN
+import utils
+import utils_pygam
+
 import torch
 from sklearn.neighbors import NearestNeighbors
-from sklearn.linear_model import LinearRegression
 from torch_geometric.data import Data
 import torch_geometric.transforms as T
-from torch_geometric.logging import log
-import sys
-sys.path.append("/Users/zhanwentao/Documents/Abhi/NN")
 import warnings
 warnings.simplefilter(action='ignore', category=FutureWarning)
 
 import pandas as pd
 import numpy as np
-from scipy.stats import multivariate_normal
-from pygam import LinearGAM, s, f
+from scipy.spatial import distance_matrix
+from scipy import sparse
 from sklearn.ensemble import RandomForestRegressor
 import lhsmdu
 import copy
-import time
-
-import mygam
 
 def RMSE(x,y):
     x = x.reshape(-1)
@@ -39,29 +37,6 @@ def order(X, Y, coord):
     coord_new = coord[order, :]
     return X_new, Y_new, coord_new
 
-class Netp(torch.nn.Module):
-    def __init__(self, p, k = 50, q = 1):
-        super(Netp, self).__init__()
-        self.l1 = torch.nn.Linear(p, k)
-        self.l2 = torch.nn.Linear(k, q)
-        #self.l3 = torch.nn.Linear(10, 1)
-
-    def forward(self, x, edge_index = 0):
-        x = torch.sigmoid(self.l1(x))
-        #x = torch.sigmoid(self.l2(x))
-        return self.l2(x)
-
-def partition (list_in, n):
-    idx = torch.randperm(list_in.shape[0])
-    list_in = list_in[idx]
-    return [torch.sort(list_in[i::n])[0] for i in range(n)]
-
-def batch_gen (data, k):
-    for mask in ['train_mask', 'val_mask', 'test_mask']:
-        data[mask + '_batch'] = partition(torch.tensor(range(data.n))[data[mask]],
-                                          int(torch.sum(data[mask])/k))
-    return(data)
-
 def int_score(x, u, l, coverage=0.95):
     alpha = 1 - coverage
     score = u - l + 2 * ((l - x) * (l > x) + (x - u) * (x > u)) / alpha
@@ -70,10 +45,6 @@ def int_score(x, u, l, coverage=0.95):
 def int_coverage(x, u, l):
     score = np.logical_and(x>=l, x<=u)
     return (np.mean(score))
-
-def decor(y, I_B_local, F_diag_local):
-    y_decor = (np.array(np.matmul(I_B_local, y)).T*np.sqrt(np.reciprocal(F_diag_local))).T
-    return(y_decor)
 
 def block_rand(n, k):
     lx = np.empty(0)
@@ -89,33 +60,13 @@ def block_rand(n, k):
         ly = np.append(ly, iy).astype(int)
     return lx, ly
 
-def decor_dense(y, FI_B_local, idx=None):
-    if idx is None: idx = range(y.shape[0])
-    y_decor = np.matmul(FI_B_local[idx, :], y)
-    return (y_decor)
+name = '0605' #### for other dates "0618" "0704" corresponding to 2022.06.18 and 2022.07.04
+split = '3'
 
-def decor_sparse(y, FI_B_local, idx=None):
-    if idx is None: idx = range(y.shape[0])
-    n = len(idx)
-    if np.ndim(y) == 2:
-        p = y.shape[1]
-        y_decor = np.zeros((n, p))
-        for i in range(n):
-            y_decor[i, :] = np.dot(FI_B_local.B[i, :], y[FI_B_local.Ind_list[i, :], :])
-    elif np.ndim(y) == 1:
-        y_decor = np.zeros(n)
-        for i in range(n):
-            y_decor[i] = np.dot(FI_B_local.B[i, :], y[FI_B_local.Ind_list[i, :]])
-    return (y_decor)
-
-#name = '0605'
-name = str(sys.argv[1])
+### Data process #######################################################################################################
 df1 = pd.read_csv('covariate' + name + '.csv')
 #df2 = pd.read_csv('pm25_0628.csv')
 df2 = pd.read_csv('pm25_' + name + '.csv')
-split = int(sys.argv[2])
-
-name = name + ''
 
 covariates = df1.values[:,3:]
 aqs_lonlat=df2.values[:,[1,2]]
@@ -153,18 +104,17 @@ b = 1
 n = coord.shape[0]
 p = X.shape[1]
 X_int = np.concatenate((X, np.repeat(1, n).reshape(n, 1)), axis=1)
+####################################################################################################################
+Netp = utils.Netp_sig
 
 k = 50
 q = 1
 lr = 0.01
-#ordered = True
 n_train = int(n*0.8)
 batch_size = 50
 nn = 10
-#X, Y, coord = order(X, Y, coord)
 ADDRFGLS = True
 Sparse = False
-if n > 10000: Sparse = True
 
 neigh = NearestNeighbors(n_neighbors=nn)
 neigh.fit(coord)
@@ -173,30 +123,19 @@ A = neigh.kneighbors_graph(coord)
 A.toarray()
 edge_index = torch.from_numpy(np.stack(A.nonzero()))
 
-MISE_BRISC = np.empty(0)
-RMSE_BRISC = np.empty(0)
-MISE_GAM = np.empty(0)
 RMSE_GAM = np.empty(0)
 RMSE_GAM_krig = np.empty(0)
 RMSE_GAM_latlong = np.empty(0)
-MISE_GAMGLS = np.empty(0)
-RMSE_GAMGLS = np.empty(0)
-RMSE_GAMGLS_krig = np.empty(0)
-MISE_RF = np.empty(0)
 RMSE_RF = np.empty(0)
 RMSE_RF_krig = np.empty(0)
-MISE_RFGLS = np.empty(0)
 RMSE_RFGLS = np.empty(0)
 RMSE_RFGLS_krig = np.empty(0)
-MISE_NN = np.empty(0)
 RMSE_NN = np.empty(0)
 RMSE_NNlatlong = np.empty(0)
 RMSE_NNDK = np.empty(0)
 RMSE_NN_krig = np.empty(0)
-MISE_NNGLS = np.empty(0)
 RMSE_NNGLS_krig = np.empty(0)
 RMSE_NNGLS2_krig = np.empty(0)
-RMSE_NNGLS3_krig = np.empty(0)
 
 df_PI1 = pd.DataFrame(columns=['BRISC', 'GAM', 'GAMGLS', 'RF', 'RFGLS', 'NN', 'NNGLS'])
 df_PI2 = pd.DataFrame(columns=['BRISC', 'GAM', 'GAMGLS', 'RF', 'RFGLS', 'NN', 'NNGLS'])
@@ -240,25 +179,11 @@ for rand in range(100):
     Y_test = Y[data.test_mask]
 
     torch.manual_seed(2023+rand)
-    data = batch_gen(data, batch_size) # a
+    data = utils.batch_gen(data, batch_size) # a
     ####################################################################################################################
     torch.manual_seed(2023 + rand)
     np.random.seed(2023 + rand)
-    beta, theta_hat_linear = utils_NN.BRISC_estimation(Y[~data.test_mask,], X_int[~data.test_mask,],
-                                                       coord[~data.test_mask,])
-
-    def model_BRISC(X, edge_index=0):
-        if isinstance(X, np.ndarray):
-            X = torch.from_numpy(X).float()
-        return (torch.matmul(X, torch.from_numpy(beta).float()))
-    Pred_BRISC = utils_NN.krig_pred(model_BRISC, X_int[~data.test_mask,], X_int[data.test_mask], Y[~data.test_mask],
-                                    coord[~data.test_mask,], coord[data.test_mask,], theta_hat_linear)
-    RMSE_BRISC = np.append(RMSE_BRISC,
-                                RMSE(Pred_BRISC[0], Y_test) / RMSE(Y_test, np.mean(Y_test)))#RMSE*
-    ####################################################################################################################
-    torch.manual_seed(2023 + rand)
-    np.random.seed(2023 + rand)
-    gam = mygam.my_LinearGAM()
+    gam = utils_pygam.my_LinearGAM()
     gam.fit(X[~data.test_mask,], Y[~data.test_mask])
     Xspline = gam._modelmat(X[~data.test_mask, :])
     gam.my_fit(X[~data.test_mask,], Xspline, Y[~data.test_mask])
@@ -273,16 +198,14 @@ for rand in range(100):
     residual =data.y - torch.from_numpy(Y_hat)
     residual_train = residual[~data.test_mask]
     residual_train = residual_train.detach().numpy()
-    _, theta_hat_GAM = utils_NN.BRISC_estimation(residual_train, X[~data.test_mask,], coord[~data.test_mask,])
-    Pred_GAM = utils_NN.krig_pred(model_GAM, X[~data.test_mask,], X[data.test_mask], Y[~data.test_mask],
+    _, theta_hat_GAM = utils.BRISC_estimation(residual_train, X[~data.test_mask,], coord[~data.test_mask,])
+    Pred_GAM = utils.krig_pred(model_GAM, X[~data.test_mask,], X[data.test_mask], Y[~data.test_mask],
                                     coord[~data.test_mask,], coord[data.test_mask,], theta_hat_GAM)
-    RMSE_GAM_krig = np.append(RMSE_GAM_krig,
-                                RMSE(Pred_GAM[0], Y_test) / RMSE(Y_test, np.mean(Y_test)))#RMSE*
     ####################################################################################################################
     torch.manual_seed(2023 + rand)
     np.random.seed(2023 + rand)
     X_coord = np.concatenate((X, coord), axis=1)
-    gam = mygam.my_LinearGAM()
+    gam = utils_pygam.my_LinearGAM()
     gam.fit(X_coord[~data.test_mask,], Y[~data.test_mask])
     Xspline = gam._modelmat(X_coord[~data.test_mask, :])
     gam.my_fit(X_coord[~data.test_mask,], Xspline, Y[~data.test_mask])
@@ -295,42 +218,6 @@ for rand in range(100):
 
     Pred_GAM_latlong = model_GAM(X_coord[data.test_mask,], edge_index).detach().numpy().reshape(-1)
     RMSE_GAM_latlong = np.append(RMSE_GAM_latlong, RMSE(Pred_GAM_latlong, Y_test) / RMSE(Y_test, np.mean(Y_test)))  # RMSE*
-    ####################################################################################################################
-    from scipy import sparse
-    torch.manual_seed(2023 + rand)
-    np.random.seed(2023 + rand)
-    gam = mygam.my_LinearGAM()
-    gam.fit(X[~data.test_mask,], Y[~data.test_mask])
-    Xspline = gam._modelmat(X[~data.test_mask, :])
-    I_B_GAM, F_GAM, _, _ = utils_NN.bf_from_theta(theta_hat_GAM, coord[~data.test_mask, :], nn, sparse=Sparse,
-                                                  version='sparseB')
-    F_GAM = F_GAM.detach().numpy()
-    if Sparse:
-        FI_B_GAM = I_B_GAM.Fmul(np.sqrt(np.reciprocal(F_GAM))).to_tensor()
-        gam.my_fit(X[~data.test_mask,], sparse.csr_matrix(np.array(decor_sparse(Xspline.todense(), FI_B_GAM))),
-               np.array(decor_sparse(Y[~data.test_mask], FI_B_GAM)))
-    else:
-        I_B_GAM = I_B_GAM.detach().numpy();
-        FI_B_GAM = (I_B_GAM.T * np.sqrt(np.reciprocal(F_GAM))).T
-        gam.my_fit(X[~data.test_mask,], sparse.csr_matrix(np.array(decor_dense(Xspline.todense(), FI_B_GAM))),
-                   np.array(decor_dense(Y[~data.test_mask], FI_B_GAM)))
-    del I_B_GAM, F_GAM, FI_B_GAM
-    def model_GAMGLS(X, edge_index=0):
-        if torch.is_tensor(X):
-            X = X.detach().numpy()
-        return (torch.from_numpy(gam.predict(X)).reshape(-1))
-    Pred_GAMGLS = model_GAMGLS(X[data.test_mask,], edge_index).detach().numpy().reshape(-1)
-    RMSE_GAMGLS = np.append(RMSE_GAMGLS, RMSE(Pred_GAMGLS, Y_test) / RMSE(Y_test, np.mean(Y_test)))#RMSE*
-
-    Y_hat = model_GAMGLS(data.x, data.edge_index).reshape(-1).detach().numpy()
-    residual =data.y - torch.from_numpy(Y_hat)
-    residual_train = residual[~data.test_mask]
-    residual_train = residual_train.detach().numpy()
-    _, theta_hat_GAMGLS = utils_NN.BRISC_estimation(residual_train, X[~data.test_mask,], coord[~data.test_mask,])
-    Pred_GAMGLS = utils_NN.krig_pred(model_GAMGLS, X[~data.test_mask,], X[data.test_mask], Y[~data.test_mask],
-                                    coord[~data.test_mask,], coord[data.test_mask,], theta_hat_GAMGLS)
-    RMSE_GAMGLS_krig = np.append(RMSE_GAMGLS_krig,
-                                RMSE(Pred_GAMGLS[0], Y_test) / RMSE(Y_test, np.mean(Y_test)))#RMSE*
     ########################################################################################################################
     torch.manual_seed(2023 + rand)
     np.random.seed(2023 + rand)
@@ -347,23 +234,21 @@ for rand in range(100):
     residual =data.y - torch.from_numpy(Y_hat)
     residual_train = residual[~data.test_mask]
     residual_train = residual_train.detach().numpy()
-    _, theta_hat_RF = utils_NN.BRISC_estimation(residual_train, X[~data.test_mask,], coord[~data.test_mask,])
-    Pred_RF = utils_NN.krig_pred(model_RF, X[~data.test_mask,], X[data.test_mask], Y[~data.test_mask],
+    _, theta_hat_RF = utils.BRISC_estimation(residual_train, X[~data.test_mask,], coord[~data.test_mask,])
+    Pred_RF = utils.krig_pred(model_RF, X[~data.test_mask,], X[data.test_mask], Y[~data.test_mask],
                                     coord[~data.test_mask,], coord[data.test_mask,], theta_hat_RF)
-    RMSE_RF_krig = np.append(RMSE_RF_krig,
-                                RMSE(Pred_RF[0], Y_test) / RMSE(Y_test, np.mean(Y_test)))#RMSE*
     ########################################################################################################################
     torch.manual_seed(2023 + rand)
     np.random.seed(2023 + rand)
     if ADDRFGLS:
         robjects.globalenv['.Random.seed'] = 1
-        rfgls = utils_NN.RFGLS_prediction(X[~data.test_mask,], Y[~data.test_mask], coord[~data.test_mask,])
+        rfgls = utils.RFGLS_prediction(X[~data.test_mask,], Y[~data.test_mask], coord[~data.test_mask,])
         def model_RFGLS(X, edge_index = 0):
             if torch.is_tensor(X):
                 X = X.detach().numpy()
-            X_r = utils_NN.robjects.FloatVector(X.transpose().reshape(-1))
-            X_r = utils_NN.robjects.r['matrix'](X_r, ncol=X.shape[1])
-            predict = utils_NN.RFGLS.RFGLS_predict(rfgls, X_r)[1]
+            X_r = utils.robjects.FloatVector(X.transpose().reshape(-1))
+            X_r = utils.robjects.r['matrix'](X_r, ncol=X.shape[1])
+            predict = utils.RFGLS.RFGLS_predict(rfgls, X_r)[1]
             return(torch.from_numpy(np.array(predict)))
         Pred_RFGLS = model_RFGLS(X[data.test_mask,], edge_index).detach().numpy().reshape(-1)
         RMSE_RFGLS = np.append(RMSE_RFGLS, RMSE(Pred_RFGLS, Y_test) / RMSE(Y_test, np.mean(Y_test)))#RMSE*
@@ -372,8 +257,8 @@ for rand in range(100):
         residual =data.y - torch.from_numpy(Y_hat)
         residual_train = residual[~data.test_mask]
         residual_train = residual_train.detach().numpy()
-        _, theta_hat_RFGLS = utils_NN.BRISC_estimation(residual_train, X[~data.test_mask,], coord[~data.test_mask,])
-        Pred_RFGLS = utils_NN.krig_pred(model_RFGLS, X[~data.test_mask,], X[data.test_mask], Y[~data.test_mask],
+        _, theta_hat_RFGLS = utils.BRISC_estimation(residual_train, X[~data.test_mask,], coord[~data.test_mask,])
+        Pred_RFGLS = utils.krig_pred(model_RFGLS, X[~data.test_mask,], X[data.test_mask], Y[~data.test_mask],
                                         coord[~data.test_mask,], coord[data.test_mask,], theta_hat_RFGLS)
         RMSE_RFGLS_krig = np.append(RMSE_RFGLS_krig,
                                     RMSE(Pred_RFGLS[0], Y_test) / RMSE(Y_test, np.mean(Y_test)))#RMSE*
@@ -384,7 +269,7 @@ for rand in range(100):
     patience_half = 10
     patience = 20
 
-    _, _, model_NN = utils_NN.train_gen_new(model_NN, optimizer, data, epoch_num=1000,
+    _, _, model_NN = utils.train_gen_new(model_NN, optimizer, data, epoch_num=1000,
                                           patience = patience, patience_half = patience_half)
     Pred_NN = model_NN(data.x[data.test_mask,], edge_index).detach().numpy().reshape(-1)
     RMSE_NN = np.append(RMSE_NN, RMSE(Pred_NN, Y_test) / RMSE(Y_test, np.mean(Y_test)))#RMSE*
@@ -398,7 +283,7 @@ for rand in range(100):
 
     data_latlong.x = torch.concatenate((data.x, torch.from_numpy(data.coord)), axis=1).float()
 
-    _, _, model_NNlatlong = utils_NN.train_gen_new(model_NNlatlong, optimizer, data_latlong, epoch_num=1000,
+    _, _, model_NNlatlong = utils.train_gen_new(model_NNlatlong, optimizer, data_latlong, epoch_num=1000,
                                                    patience=patience, patience_half=patience_half)
     Pred_NNlatlong = model_NNlatlong(data_latlong.x[data_latlong.test_mask,], edge_index).detach().numpy().reshape(-1)
     RMSE_NNlatlong = np.append(RMSE_NNlatlong, RMSE(Pred_NNlatlong, Y_test) / RMSE(Y_test, np.mean(Y_test)))#RMSE*
@@ -428,7 +313,7 @@ for rand in range(100):
     patience = 20
     data_DK = copy.copy(data)
     data_DK.x = torch.concatenate((data.x, torch.from_numpy(phi_temp)), axis=1).float()
-    _, _, model_NNDK = utils_NN.train_gen_new(model_NNDK, optimizer, data_DK, epoch_num=1000,
+    _, _, model_NNDK = utils.train_gen_new(model_NNDK, optimizer, data_DK, epoch_num=1000,
                                               patience=patience, patience_half=patience_half)
     Pred_NNDK = model_NNDK(data_DK.x[data_DK.test_mask,], edge_index).detach().numpy().reshape(-1)
     RMSE_NNDK = np.append(RMSE_NNDK, RMSE(Pred_NNDK, Y_test) / RMSE(Y_test, np.mean(Y_test)))#RMSE*
@@ -437,10 +322,10 @@ for rand in range(100):
     residual =data.y - torch.from_numpy(Y_hat)
     residual_train = residual[~data.test_mask]
     residual_train = residual_train.detach().numpy()
-    beta_hat, theta_hat = utils_NN.BRISC_estimation(residual_train, X[~data.test_mask,], coord[~data.test_mask,])
+    beta_hat, theta_hat = utils.BRISC_estimation(residual_train, X[~data.test_mask,], coord[~data.test_mask,])
     theta_hat0 = theta_hat
 
-    Pred_NN = utils_NN.krig_pred(model_NN, X[~data.test_mask,], X[data.test_mask], Y[~data.test_mask],
+    Pred_NN = utils.krig_pred(model_NN, X[~data.test_mask,], X[data.test_mask], Y[~data.test_mask],
                                     coord[~data.test_mask,], coord[data.test_mask,], theta_hat0)
     RMSE_NN_krig = np.append(RMSE_NN_krig,
                                 RMSE(Pred_NN[0], Y_test) / RMSE(Y_test, np.mean(Y_test)))#RMSE*
@@ -451,29 +336,12 @@ for rand in range(100):
     patience_half = 10
     patience = 20
 
-    _, _, model_NNGLS = utils_NN.train_decor_new(model_NNGLS, optimizer, data, 1000, theta_hat0, sparse=Sparse,
+    _, _, model_NNGLS = utils.train_decor_new(model_NNGLS, optimizer, data, 1000, theta_hat0, sparse=Sparse,
                                             Update=False, patience=patience, patience_half=patience_half)
-    Pred_NNGLS = utils_NN.krig_pred(model_NNGLS, X[~data.test_mask,], X[data.test_mask], Y[~data.test_mask],
+    Pred_NNGLS = utils.krig_pred(model_NNGLS, X[~data.test_mask,], X[data.test_mask], Y[~data.test_mask],
                                     coord[~data.test_mask,], coord[data.test_mask,], theta_hat0)
     RMSE_NNGLS_krig = np.append(RMSE_NNGLS_krig,
-                                RMSE(Pred_NNGLS[0], Y_test)/RMSE(Y_test, np.mean(Y_test))) #RMSE*
-
-    ###################################################################################
-    torch.manual_seed(2023)
-    model_NNGLS2 = Netp(p, k, q)
-    optimizer = torch.optim.Adam(model_NNGLS2.parameters(), lr=0.1)
-    patience_half = 10
-    patience = 20
-
-    theta_hat2, _, model_NNGLS2 = utils_NN.train_decor_new(model_NNGLS2, optimizer, data, 1000, theta_hat0, sparse=Sparse,
-                                                 Update=True, patience=patience, patience_half=patience_half,
-                                                  Update_method='optimization', Update_init=50, Update_step=50,
-                                                  Update_bound=100)
-    Pred_NNGLS2 = utils_NN.krig_pred(model_NNGLS2, X[~data.test_mask,], X[data.test_mask], Y[~data.test_mask],
-                                    coord[~data.test_mask,], coord[data.test_mask,], theta_hat2)
-    RMSE_NNGLS2_krig = np.append(RMSE_NNGLS2_krig,
-                                RMSE(Pred_NNGLS2[0], Y_test) / RMSE(Y_test, np.mean(Y_test)))  # RMSE*
-
+                                RMSE(Pred_NNGLS[0], Y_test)/RMSE(Y_test, np.mean(Y_test)))
     ###################################################################################
     torch.manual_seed(2023)
     model_NNGLS3 = Netp(p, k, q)
@@ -481,51 +349,45 @@ for rand in range(100):
     patience_half = 10
     patience = 20
 
-    theta_hat3, _, model_NNGLS3 = utils_NN.train_decor_new(model_NNGLS3, optimizer, data, 1000, theta_hat0, sparse=Sparse,
+    theta_hat2, _, model_NNGLS2 = utils.train_decor_new(model_NNGLS2, optimizer, data, 1000, theta_hat0, sparse=Sparse,
                                                   Update=True, patience=patience, patience_half=patience_half,
                                                   Update_method='optimization', Update_init=20, Update_step=20,
                                                   Update_bound=100)
-    Pred_NNGLS3 = utils_NN.krig_pred(model_NNGLS3, X[~data.test_mask,], X[data.test_mask], Y[~data.test_mask],
-                                     coord[~data.test_mask,], coord[data.test_mask,], theta_hat3)
-    RMSE_NNGLS3_krig = np.append(RMSE_NNGLS3_krig,
-                                 RMSE(Pred_NNGLS3[0], Y_test) / RMSE(Y_test, np.mean(Y_test)))  # RMSE*
+    Pred_NNGLS2 = utils.krig_pred(model_NNGLS2, X[~data.test_mask,], X[data.test_mask], Y[~data.test_mask],
+                                     coord[~data.test_mask,], coord[data.test_mask,], theta_hat2)
+    RMSE_NNGLS2_krig = np.append(RMSE_NNGLS2_krig,
+                                 RMSE(Pred_NNGLS2[0], Y_test) / RMSE(Y_test, np.mean(Y_test)))  # RMSE*
     ####################################################################################################################
-    df_PI1_temp = {'BRISC': int_coverage(Y_test, Pred_BRISC[1], Pred_BRISC[2]),
-                  'GAM': int_coverage(Y_test, Pred_GAM[1], Pred_GAM[2]),
+    df_PI1_temp = {'GAM': int_coverage(Y_test, Pred_GAM[1], Pred_GAM[2]),
                   'GAM_latlong': int_coverage(Y_test, PI_GAM_latlong[:, 1], PI_GAM_latlong[:, 0]),
-                  'GAMGLS': int_coverage(Y_test, Pred_GAMGLS[1], Pred_GAMGLS[2]),
                   'RF': int_coverage(Y_test, Pred_RF[1], Pred_RF[2]),
-                  'RFGLS': int_coverage(Y_test, Pred_RFGLS[1], Pred_RFGLS[2]),
                   'NN': int_coverage(Y_test, Pred_NN[1], Pred_NN[2]),
                   'NNGLS': int_coverage(Y_test, Pred_NNGLS[1], Pred_NNGLS[2]),
-                  'NNGLS2': int_coverage(Y_test, Pred_NNGLS2[1], Pred_NNGLS2[2]),
-                  'NNGLS3': int_coverage(Y_test, Pred_NNGLS3[1], Pred_NNGLS3[2])
+                  'NNGLS2': int_coverage(Y_test, Pred_NNGLS2[1], Pred_NNGLS2[2])
                    }
 
-    df_PI2_temp = {'BRISC': int_score(Y_test, Pred_BRISC[1], Pred_BRISC[2], 0.95),
-                  'GAM': int_score(Y_test, Pred_GAM[1], Pred_GAM[2], 0.95),
+    df_PI2_temp = {'GAM': int_score(Y_test, Pred_GAM[1], Pred_GAM[2], 0.95),
                   'GAM_latlong': int_coverage(Y_test, PI_GAM_latlong[:, 1], PI_GAM_latlong[:, 0]),
-                  'GAMGLS': int_score(Y_test, Pred_GAMGLS[1], Pred_GAMGLS[2], 0.95),
                   'RF': int_score(Y_test, Pred_RF[1], Pred_RF[2], 0.95),
-                  'RFGLS': int_score(Y_test, Pred_RFGLS[1], Pred_RFGLS[2], 0.95),
                   'NN': int_score(Y_test, Pred_NN[1], Pred_NN[2], 0.95),
                   'NNGLS': int_score(Y_test, Pred_NNGLS[1], Pred_NNGLS[2], 0.95),
-                  'NNGLS2': int_score(Y_test, Pred_NNGLS2[1], Pred_NNGLS2[2], 0.95),
-                  'NNGLS3': int_score(Y_test, Pred_NNGLS3[1], Pred_NNGLS3[2], 0.95)
+                  'NNGLS2': int_score(Y_test, Pred_NNGLS2[1], Pred_NNGLS2[2], 0.95)
                   }
+    if ADDRFGLS:
+        df_PI1_temp['RFGLS'] = int_coverage(Y_test, Pred_RFGLS[1], Pred_RFGLS[2])
+        df_PI2_temp['RFGLS'] = int_score(Y_test, Pred_RFGLS[1], Pred_RFGLS[2], 0.95)
     df_PI1 = df_PI1.append(df_PI1_temp, ignore_index=True)
     df_PI1.to_csv(".//simulation//realdata//" + name + 'block' + str(split) + '_PI_cov.csv')
     df_PI2 = df_PI2.append(df_PI2_temp, ignore_index=True)
     df_PI2.to_csv(".//simulation//realdata//" + name + 'block' + str(split) + '_PI_score.csv')
     ####################################################################################################################
     df_RMSE = pd.DataFrame(
-        {'BRISC': RMSE_BRISC, 'GAM': RMSE_GAM, 'GAM_krig': RMSE_GAM_krig,
+        {'GAM': RMSE_GAM,
          'GAM_latlong': RMSE_GAM_latlong,
-         'GAMGLS': RMSE_GAMGLS, 'GAMGLS_krig': RMSE_GAMGLS_krig,
-         'RF': RMSE_RF, 'RF_krig': RMSE_RF_krig,
+         'RF': RMSE_RF,
          'NN_latlong': RMSE_NNlatlong, 'NNDK': RMSE_NNDK,
-         'NN': RMSE_NN, 'NN_krig': RMSE_NN_krig, 'NNGLS_krig': RMSE_NNGLS_krig,
-         'NNGLS2_krig': RMSE_NNGLS2_krig, 'NNGLS3_krig': RMSE_NNGLS3_krig
+         'NN': RMSE_NN,
+         'NNGLS_krig': RMSE_NNGLS_krig, 'NNGLS2_krig': RMSE_NNGLS2_krig
         })
     if ADDRFGLS:
         df_RMSE['RFGLS'] = RMSE_RFGLS

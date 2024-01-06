@@ -39,8 +39,6 @@ def rmvn(m, mu, cov, I_B, F_diag, sparse, chol = True):
         res = np.matmul(np.random.randn(m, p), np.matrix.transpose(D)) + mu
     elif sparse:
         res = solve_I_B_sparseB(I_B, np.sqrt(F_diag) * np.random.randn(m, p).reshape(-1))
-        #res = scipy.sparse.linalg.spsolve_triangular(I_B, np.sqrt(F_diag) * np.random.randn(m, p).reshape(-1))
-        #res = scipy.linalg.solve_triangular(I_B.to_dense(), np.sqrt(F_diag) * np.random.randn(m, p).reshape(-1), lower=True)
     else:
         res = scipy.linalg.solve_triangular(I_B, np.sqrt(F_diag) * np.random.randn(m, p).reshape(-1),lower=True)
     return  res.reshape(-1) # * np.ones((m, p))
@@ -307,7 +305,7 @@ def bf_from_theta(theta, coord, nn, method = '0', nu = 1.5, sparse = True, versi
 
     return I_B, F_diag, rank, cov
 
-def Simulate_NNGP(n, p, fx, nn, theta, method = '0', nu = 1.5, a = 0, b = 1, sparse = True, meanshift = False):
+def Simulate(n, p, fx, nn, theta, method = '0', nu = 1.5, a = 0, b = 1, sparse = True, meanshift = False):
     #n = 1000
     coord = np.random.uniform(low = a, high = b, size=(n, 2))
     sigma_sq, phi, tau = theta
@@ -344,115 +342,38 @@ def Simulate_mis(n, p, fx, nn, theta, corerr_gen, a=0, b=1):
 
     return X, Y, rank, coord, corerr
 
-class CustomDataset(Dataset):
-    def __init__(self, x_tensor, y_tensor):
-        self.x = x_tensor
-        self.y = y_tensor
+# Data #################################################################################################################
+def partition (list_in, n):
+    idx = torch.randperm(list_in.shape[0])
+    list_in = list_in[idx]
+    return [torch.sort(list_in[i::n])[0] for i in range(n)]
 
-    def __getitem__(self, index):
-        return (self.x[index], self.y[index], index)
-
-    def __len__(self):
-        return len(self.x)
-
-def one_loader(X, Y, batch_size = 50):
-    x_tensor = torch.from_numpy(X).float()
-    y_tensor = torch.from_numpy(Y).float()
-    dataset = CustomDataset(x_tensor, y_tensor)
-    loader = DataLoader(dataset=dataset, batch_size=batch_size, shuffle=False)
-    return loader
-
-def set_loader(X, Y, prop = 0.8, batch_size = 50):
-    n = len(Y)
-    n_cut = int(n * prop)
-    x_tensor = torch.from_numpy(X).float()
-    y_tensor = torch.from_numpy(Y).float()
-
-    dataset = CustomDataset(x_tensor, y_tensor)
-
-    train_dataset, val_dataset = random_split(dataset, [n_cut, n - n_cut])
-
-    train_loader = DataLoader(dataset=train_dataset, batch_size=batch_size, shuffle=False)
-    val_loader = DataLoader(dataset=val_dataset, batch_size=n - n_cut, shuffle=False)
-
-    return train_loader, val_loader
-
+def batch_gen (data, k):
+    for mask in ['train_mask', 'val_mask', 'test_mask']:
+        data[mask + '_batch'] = partition(torch.tensor(range(data.n))[data[mask]],
+                                          int(torch.sum(data[mask])/k))
+    return(data)
 # Models ###############################################################################################################
 
-class Netp(torch.nn.Module):
-    def __init__(self, p, k = 50):
-        super(Netp, self).__init__()
+class Netp_sig(torch.nn.Module):
+    def __init__(self, p, k = 50, q = 1):
+        super(Netp_sig, self).__init__()
         self.l1 = torch.nn.Linear(p, k)
-        self.l2 = torch.nn.Linear(k, 1)
-        #self.l3 = torch.nn.Linear(10, 1)
+        self.l2 = torch.nn.Linear(k, q)
 
-    def forward(self, x, edge_idx = 0):
+    def forward(self, x, edge_index = 0):
         x = torch.sigmoid(self.l1(x))
-        #x = torch.sigmoid(self.l2(x))
         return self.l2(x)
 
-# Losses ###############################################################################################################
+class Netp_tanh(torch.nn.Module):
+    def __init__(self, p, k = 50, q = 1):
+        super(Netp_tanh, self).__init__()
+        self.l1 = torch.nn.Linear(p, k)
+        self.l2 = torch.nn.Linear(k, q)
 
-class Decorloss(torch.nn.Module):
-    def __init__(self, weight=None, size_average=True):
-        super(Decorloss, self).__init__()
-
-    def forward(self, inputs, targets, B0, F0):
-        # flatten label and prediction tensors
-        inputs = inputs.view(-1)
-        targets = targets.view(-1)
-        dif = inputs - targets
-
-        temp = torch.sqrt(torch.reciprocal(F0).double()) * torch.transpose(B0.double(), 0, 1)
-        dif_decor = torch.matmul(torch.transpose(temp, 0, 1), dif.double())
-
-        return torch.sum(dif_decor.pow(2))/len(dif)
-
-class Decorloss_nh(torch.nn.Module):
-    def __init__(self, weight=None, size_average=True):
-        super(Decorloss, self).__init__()
-
-    def forward(self, inputs, targets, neighbors, B0, F0):
-        # flatten label and prediction tensors
-        inputs = inputs.view(-1)
-        targets = targets.view(-1)
-        dif = inputs - targets
-
-        temp = torch.sqrt(torch.reciprocal(F0).double()) * torch.transpose(B0.double(), 0, 1)
-        dif_decor = torch.matmul(torch.transpose(temp, 0, 1), dif.double())
-
-        return torch.sum(dif_decor.pow(2))/len(dif)
-
-class Invloss(torch.nn.Module):
-    def __init__(self, weight=None, size_average=True):
-        super(Invloss, self).__init__()
-
-    def forward(self, inputs, targets, Cov):
-        # flatten label and prediction tensors
-        inputs = inputs.view(-1)
-        targets = targets.view(-1)
-        dif = inputs - targets
-
-        P = np.linalg.inv(np.linalg.cholesky(Cov))
-        C_inv = np.dot(np.transpose(P), P)
-
-        C_invdif = torch.matmul(torch.from_numpy(C_inv), dif.double())
-
-        return torch.dot(C_invdif, dif.double())
-
-class Myloss(torch.nn.Module):
-    def __init__(self, weight=None, size_average=True):
-        super(Myloss, self).__init__()
-
-    def forward(self, inputs, targets, Mat):
-        # flatten label and prediction tensors
-        inputs = inputs.view(-1)
-        targets = targets.view(-1)
-        dif = inputs - targets
-
-        temp = torch.matmul(Mat.double(), dif.double())
-
-        return torch.dot(temp, dif.double())
+    def forward(self, x, edge_index = 0):
+        x = torch.tanh(self.l1(x))
+        return self.l2(x)
 
 # Stopping #############################################################################################################
 
@@ -520,7 +441,7 @@ class EarlyStopping():
 
 # Functions ############################################################################################################
 
-def fx(X): return 10 * np.sin(np.pi * X)
+def f1(X): return 10 * np.sin(np.pi * X)
 
 def fx_l(x): return 5*x + 2
 
@@ -543,24 +464,19 @@ def import_BRISC():
     BRISC = importr('BRISC')
     return BRISC
 
-
 BRISC = import_BRISC()
-
 
 def import_RF():
     RF = importr('randomForest')
     return RF
 
-
 def import_RFGLS():
     RFGLS = importr('RandomForestsGLS')
     return RFGLS
 
-
 BRISC = import_BRISC()
 RF = import_RF()
 RFGLS = import_RFGLS()
-
 
 def BRISC_estimation(residual, X, coord):
     residual_r = robjects.FloatVector(residual)
@@ -586,29 +502,9 @@ def BRISC_estimation(residual, X, coord):
 
     return beta, theta_hat
 
-
-def RF_prediction(X, Y, coord, X_MISE):
-    Xr = robjects.FloatVector(X.transpose().reshape(-1))
-    Xr = robjects.r['matrix'](Xr, ncol=X.shape[1])
-    Y_r = robjects.FloatVector(Y)
-
-    X_MISE_r = robjects.FloatVector(X_MISE.detach().numpy().transpose().reshape(-1))
-    X_MISE_r = robjects.r['matrix'](X_MISE_r, ncol=X.shape[1])
-
-    res = RF.randomForest(Xr, Y_r)
-    predict = robjects.r['predict'](res, X_MISE_r)
-    del res
-    predict = torch.from_numpy(np.array(predict))
-    return predict
-
-#RFGLS_estimate_spatial_r = robjects.r('''function(coord, Y, X){library(RandomForestsGLS);
-#.Random.seed = as.integer(1); RFGLS_estimate_spatial(coord, Y, X)}''')
-
 robjects.globalenv['.Random.seed'] = 1
 
 def RFGLS_prediction(X, Y, coord, X_MISE = 0, n_tree = 100, node_size = 20):
-    #n_tree_r = robjects.IntVector([n_tree])
-    #node_size_r = robjects.IntVector([node_size])
     Xr = robjects.FloatVector(X.transpose().reshape(-1))
     Xr = robjects.r['matrix'](Xr, ncol=X.shape[1])
     Y_r = robjects.FloatVector(Y)
@@ -616,57 +512,84 @@ def RFGLS_prediction(X, Y, coord, X_MISE = 0, n_tree = 100, node_size = 20):
     coord_r = robjects.r['matrix'](coord_r, ncol=2)
     robjects.globalenv['.Random.seed'] = 1
     res = RFGLS.RFGLS_estimate_spatial(coord_r, Y_r, Xr, nthsize = node_size, ntree = n_tree)
-    #res = RFGLS_estimate_spatial_r(coord_r, Y_r, Xr)
-    # predict = RFGLS.RFGLS_predict(res, X_MISE_r)[1]
-    # del res
-    # predict = torch.from_numpy(np.array(predict))
     return res
+
+# Decorrelation ########################################################################################################
+def decor_dense(y, FI_B_local, idx = None):
+    if idx is None: idx = range(y.shape[0])
+    y = y.reshape(-1)
+    y_decor = torch.matmul(FI_B_local[idx,:].double(), y.double())
+    return(y_decor.float())
+
+def decor_sparse(y, FI_B_local, idx = None):
+    n = y.shape[0]
+    y = y.reshape((n, 1))
+    y_decor = torch_sparse.spmm(torch.from_numpy(FI_B_local[0]), torch.from_numpy(FI_B_local[1]), n, n, y)
+    #y_decor = torch.sparse.mm(FI_B_local, y)
+    return(y_decor.reshape(-1))
+
+def decor_dense_np(y, FI_B_local, idx=None):
+    if idx is None: idx = range(y.shape[0])
+    y_decor = np.matmul(FI_B_local[idx, :], y)
+    return (y_decor)
+
+def decor_sparse_np(y, FI_B_local, idx=None):
+    if idx is None: idx = range(y.shape[0])
+    n = len(idx)
+    if np.ndim(y) == 2:
+        p = y.shape[1]
+        y_decor = np.zeros((n, p))
+        for i in range(n):
+            y_decor[i, :] = np.dot(FI_B_local.B[idx[i], :], y[FI_B_local.Ind_list[idx[i], :], :])
+    elif np.ndim(y) == 1:
+        y_decor = np.zeros(n)
+        for i in range(n):
+            y_decor[i] = np.dot(FI_B_local.B[idx[i], :], y[FI_B_local.Ind_list[idx[i], :]])
+    return (y_decor)
+
+def decor_sparse_SparseB(y, FI_B_local, idx = None):
+    if idx is None: idx = range(y.shape[0])
+    y = y.reshape(-1)
+    n = len(idx)
+    y_decor = torch.zeros(n)
+    for i in range(n):
+        y_decor[i] = torch.dot(FI_B_local.B[idx[i],:], y[FI_B_local.Ind_list[idx[i],:]])
+    return(y_decor.float())
+
+def undecor(y_decor, I_B_inv_local, F_diag_local):
+    y = torch.matmul(I_B_inv_local,
+                     torch.sqrt(F_diag_local.double()) * y_decor.double())
+    return(y)
+
+# Resample #############################################################################################################
+def resample_fun_sparseB(residual, coord, nn, theta, regenerate=False):
+    FI_B = sparse_decor_sparseB(coord, nn, theta)
+    FI_B = FI_B.to_tensor()
+    residual_decor = decor_sparse_SparseB(residual, FI_B).detach().numpy()
+    if regenerate:
+        residual_decor = np.std(residual_decor) * np.random.randn(1, residual_decor.shape[0])
+    rank = make_rank(coord, nn)
+    I_B, F_diag = make_bf_sparse(coord, rank, theta)
+    idx = torch.randperm(residual_decor.shape[0])
+    residual_decor = residual_decor[idx]  # *np.random.choice([-1,1], residual_decor.shape[0])
+    res = solve_I_B_sparseB(I_B, np.sqrt(F_diag) * residual_decor.reshape(-1))
+    return (res)
+
+
+def resample_fun(residual, I_B, I_B_inv, F_diag, resample='shuffle', regenerate=False):
+    FI_B = (I_B.T * torch.sqrt(torch.reciprocal(F_diag))).T
+    residual_decor = decor_dense(residual, FI_B).detach().numpy()
+    if regenerate:
+        residual_decor = np.std(residual_decor) * np.random.randn(1, residual_decor.shape[0])
+    if resample == 'shuffle':
+        idx = torch.randperm(residual_decor.shape[0])
+    elif resample == 'choice':
+        idx = np.random.choice(residual_decor.shape[0], residual_decor.shape[0])
+    residual_decor = torch.from_numpy(residual_decor[idx])  # *torch.from_numpy(np.random.choice([-1,1], residual_decor.shape[0]))
+    return (undecor(residual_decor, I_B_inv, F_diag))
+
 # Training #############################################################################################################
-def make_train_step(model, loss_fn, optimizer):
-    # Builds function that performs a step in the train loop
-    def train_step(x, y, C):
-        # Sets model to TRAIN mode
-        y = y.view(-1)
-        model.train()
-        # Makes predictions
-        yhat = model(x)
-        yhat = yhat.view(-1)
-        # Computes loss
-        loss = loss_fn(y, yhat, C)
-        # Computes gradients
-        loss.backward()
-        # Updates parameters and zeroes gradients
-        optimizer.step()
-        optimizer.zero_grad()
-        # Returns the loss
-        return loss.item()
-
-    # Returns the function that will be called inside the train loop
-    return train_step
-
-def make_train_step_decor(model, optimizer):
-    # Builds function that performs a step in the train loop
-    loss_fn_local = Decorloss()
-    def train_step_decor(x, y, B, F):
-        # Sets model to TRAIN mode
-        model.train()
-        # Makes predictions
-        yhat = model(x)
-        # Computes loss
-        loss = loss_fn_local(y, yhat, B, F)
-        # Computes gradients
-        loss.backward()
-        # Updates parameters and zeroes gradients
-        optimizer.step()
-        optimizer.zero_grad()
-        # Returns the loss
-        return loss.item()
-
-    # Returns the function that will be called inside the train loop
-    return train_step_decor
-
 MSE = torch.nn.MSELoss(reduction='mean')
-
 def train_gen_new(model, optimizer, data, epoch_num, loss_fn = MSE,
                   patience = 20, patience_half = 10):
     def train(model, data, idx):
@@ -709,66 +632,6 @@ def train_gen_new(model, optimizer, data, epoch_num, loss_fn = MSE,
             print('End at epoch' + str(epoch))
             break
     return epoch, val_losses, model
-
-def decor_dense(y, FI_B_local, idx = None):
-    if idx is None: idx = range(y.shape[0])
-    y = y.reshape(-1)
-    y_decor = torch.matmul(FI_B_local[idx,:].double(), y.double())
-    return(y_decor.float())
-
-'''
-def decor_sparse_old(y, FI_B_local, idx = None):
-    if idx is None: idx = range(y.shape[0])
-    y = y.reshape(-1)
-    n = len(idx)
-    y_decor = torch.zeros(n)
-    for i in range(n):
-        y_decor[i] = torch.dot(FI_B_local.B[i,:], y[FI_B_local.Ind_list[i,:]])
-    return(y_decor.float())
-
-'''
-
-def decor_sparse(y, FI_B_local, idx = None):
-    n = y.shape[0]
-    y = y.reshape((n, 1))
-    y_decor = torch_sparse.spmm(torch.from_numpy(FI_B_local[0]), torch.from_numpy(FI_B_local[1]), n, n, y)
-    #y_decor = torch.sparse.mm(FI_B_local, y)
-    return(y_decor.reshape(-1))
-
-def decor_sparse_SparseB(y, FI_B_local, idx = None):
-    if idx is None: idx = range(y.shape[0])
-    y = y.reshape(-1)
-    n = len(idx)
-    y_decor = torch.zeros(n)
-    for i in range(n):
-        y_decor[i] = torch.dot(FI_B_local.B[idx[i],:], y[FI_B_local.Ind_list[idx[i],:]])
-    return(y_decor.float())
-
-def undecor(y_decor, I_B_inv_local, F_diag_local):
-    y = torch.matmul(I_B_inv_local,
-                     torch.sqrt(F_diag_local.double()) * y_decor.double())
-    return(y)
-
-def resample_fun_sparseB (residual, coord, nn, theta):
-        FI_B = sparse_decor_sparseB(coord, nn, theta)
-        FI_B = FI_B.to_tensor()
-        residual_decor = decor_sparse_SparseB(residual, FI_B).detach().numpy()
-        rank = make_rank(coord, nn)
-        I_B, F_diag = make_bf_sparse(coord, rank, theta)
-        idx = torch.randperm(residual_decor.shape[0])
-        residual_decor = residual_decor[idx]#*np.random.choice([-1,1], residual_decor.shape[0])
-        res = solve_I_B_sparseB(I_B, np.sqrt(F_diag) * residual_decor.reshape(-1))
-        return(res)
-
-def resample_fun (residual, I_B, I_B_inv, F_diag, resample = 'shuffle'):
-    FI_B = (I_B.T * torch.sqrt(torch.reciprocal(F_diag))).T
-    residual_decor = decor_dense(residual, FI_B)
-    if resample == 'shuffle':
-        idx = torch.randperm(residual_decor.shape[0])
-    elif resample == 'choice':
-        idx = np.random.choice(residual_decor.shape[0], residual_decor.shape[0])
-    residual_decor = residual_decor[idx]#*torch.from_numpy(np.random.choice([-1,1], residual_decor.shape[0]))
-    return(undecor(residual_decor, I_B_inv, F_diag))
 
 def train_decor_new(model, optimizer, data, epoch_num, theta_hat0, BF = None, sparse = None, sparseB = True,
                     loss_fn = MSE, nn = 20,
@@ -836,13 +699,12 @@ def train_decor_new(model, optimizer, data, epoch_num, theta_hat0, BF = None, sp
         losses.append(train_loss)
         Y_hat = model(X.float()).reshape(-1).double()
 
+        # Parameter updating
         if (epoch >= Update_init) & (epoch % Update_step == 0) & Update:
             if Update_method == 'optimization':
                 def test2(theta_hat_test):
                     sigma, phi, tau = theta_hat_test
                     tau_sq = sigma*tau
-                    #dist = distance(coord, coord)
-                    #cov = sigma * (np.exp(-phi * dist) + tau * np.eye(n))  # need dist, n
 
                     Y_hat_local = Y_hat
                     err = (Y_hat_local - Y).detach().numpy()
@@ -852,8 +714,6 @@ def train_decor_new(model, optimizer, data, epoch_num, theta_hat0, BF = None, sp
                         ind = rank[i, :][rank[i, :] <= i]
                         id = np.append(ind, i)
 
-                        #sub_cov = cov[ind, :][:, ind]
-                        #sub_vec = cov[ind, i]
                         sub_cov = make_cov(theta_hat_test, distance(coord[ind, :], coord[ind, :])) + tau_sq*np.eye(len(ind))
                         sub_vec = make_cov(theta_hat_test, distance(coord[i, :], coord[ind, :])).reshape(-1)
                         if np.linalg.det(sub_cov):
@@ -901,223 +761,14 @@ def train_decor_new(model, optimizer, data, epoch_num, theta_hat0, BF = None, sp
 
         if val_loss < best_val_loss:
             best_val_loss = val_loss
-            test_loss = tmp_test_loss
         lr_scheduler(val_loss)
         early_stopping(val_loss)
         val_losses.append(val_loss)
         if early_stopping.early_stop:
             print('End at epoch' + str(epoch))
             break
-    #return epoch, val_losses, model
-    return theta_hat, val_losses, model
-
-def train_gen(model, optimizer, mat_fun, epoch_num, matrices, train_loader, val_loader, X_MISE, Y_MISE, batch_num,
-              shift = 0, patience = 20, patience_half = 10,
-              losses_out = True):
-    #model = model_fun()
-    loss_fn = Myloss()
-    train_step = make_train_step(model, loss_fn, optimizer)
-    lr_scheduler = LRScheduler(optimizer, patience = patience_half, factor=0.5)
-    early_stopping = EarlyStopping(patience=patience, min_delta=0.00001)
-
-    losses = []
-    val_losses = []
-
-    for epoch in range(epoch_num):
-        start_time = time.time()
-        val_acu = 0
-        for batch_idx, (x_batch, y_batch, idx) in enumerate(train_loader):
-            # for x_batch, y_batch in train_loader:
-            # x_batch = x_batch.to(device)
-            # y_batch = y_batch.to(device)
-            mat = mat_fun(idx, matrices)
-
-            loss = train_step(x_batch, y_batch - shift, mat)
-
-            with torch.no_grad():
-                for _, (x_val, y_val, idx0) in enumerate(val_loader):
-                    # x_val = x_val.to(device)
-                    # y_val = y_val.to(device)
-
-                    model.eval()
-
-                    yhat = model(x_val).view(-1)
-                    mat = mat_fun(idx0, matrices)
-                    val_loss = loss_fn(y_val - shift, yhat, mat)
-                    val_acu += val_loss
-                    # val_losses.append(val_loss.item())
-
-        with torch.no_grad():
-            if losses_out == True:
-                Y_MISE_hat = model(X_MISE)
-                print(MSE(Y_MISE, Y_MISE_hat))
-                losses.append(MSE(Y_MISE, Y_MISE_hat))
-
-        val_losses.append(val_acu / batch_num)
-        lr_scheduler(val_acu / batch_num)
-        early_stopping(val_acu / batch_num)
-        if early_stopping.early_stop:
-            break
-        #print("--- %s seconds ---" % (time.time() - start_time))
-    return losses, val_losses, model
-
-def train_decor(X, Y,
-                theta_hat0, coord, nn,
-                X_MISE, Y_MISE, iter_max,
-                model, optimizer, loss_fn,
-                train_loader, val_loader,
-                batch_num, shift = 0, patience = 20, patience_half = 10,
-                NNGP = True, Update = True,
-                Update_method = 'optimization', Update_init = 50, Update_step = 50, Update_bound = 0.1,
-                Update_lr_ctrl = False):
-    n = len(Y)
-    theta_hat = theta_hat0.copy()####12.15 update
-    if NNGP != True: Update = False
-
-    df = pd.DataFrame(coord, columns=['x', 'y'])
-    dist = distance_matrix(df.values, df.values)
-
-    I_B, F_diag, rank, cov = bf_from_theta(theta_hat, coord, nn, sparse= False)
-    if NNGP != True: Chol = np.linalg.inv(np.linalg.cholesky(cov))
-
-    rank_list = []
-    for i in range(n):
-        rank_list.append(rank[i, :][np.where(rank[i, :] < i)])
-    lr_scheduler = LRScheduler(optimizer, patience = patience_half, factor=0.5)
-    early_stopping = EarlyStopping(patience=patience, min_delta = 0.00001)
-
-    Y_test = torch.from_numpy(Y - shift).float()
-    losses_test = []
-    val_losses_test = []
-    model_optim = model
-    model.train()
-
-    for epoch in range(iter_max):
-        print(epoch)
-        if NNGP:
-            Y_test_test = torch.sqrt(torch.reciprocal(F_diag).double()) * torch.matmul(I_B.double(), Y_test.double())
-        else:
-            Y_test_test = torch.matmul(torch.from_numpy(Chol).double(), Y_test.double())#Y
-        val_acu_test = 0
-        for batch_idx, (x_batch, y_batch, idx) in enumerate(train_loader):
-            model.train()
-            Y_hat = model(torch.from_numpy(X).float()).reshape(-1).double()
-            temp = []
-            for i in idx:
-                if NNGP:
-                    id = np.append(rank_list[i], i)
-                    temp.append(
-                        torch.sqrt(torch.reciprocal(F_diag[i]).double()) * torch.dot(I_B.double()[i, id].reshape(-1),
-                                                                                     Y_hat[id]))
-                else:
-                    temp.append(torch.dot(torch.from_numpy(Chol).double()[i,:].reshape(-1),Y_hat))
-            Y_hat_test = torch.stack(temp).reshape(-1)
-            loss = loss_fn(Y_hat_test, Y_test_test[idx])
-            loss.backward()
-            # Updates parameters and zeroes gradients
-            optimizer.step()
-            optimizer.zero_grad()
-
-            with torch.no_grad():
-                for _, (x_val, y_val, idx_0) in enumerate(val_loader):
-                    model.eval()
-                    if len(idx_0) == 0:
-                        continue
-
-                    temp = []
-                    for i in idx_0:
-                        if NNGP:
-                            id = np.append(rank_list[i], i)
-                            temp.append(torch.sqrt(torch.reciprocal(F_diag[i]).double()) * torch.dot(
-                                I_B.double()[i, id].reshape(-1),Y_hat[id]))
-                        else: temp.append(torch.dot(torch.from_numpy(Chol).double()[i,:].reshape(-1),Y_hat))
-                    Y_hat_test = torch.stack(temp).reshape(-1)
-                    val_loss = loss_fn(Y_hat_test, Y_test_test[idx_0])
-                    val_acu_test += val_loss
-
-        with torch.no_grad():
-            Y_MISE_hat = model(X_MISE)
-            loss_temp = loss_fn(Y_MISE, Y_MISE_hat)
-            #print(loss_fn(Y_MISE, Y_MISE_hat))
-            losses_test.append(loss_temp)
-            print(loss_temp)
-
-            Y_hat = model(torch.from_numpy(X).float()).reshape(-1).double()
-
-            if (epoch >= Update_init) & (epoch % Update_step == 0) & Update:
-                if Update_method == 'optimization':
-                    def test2(theta_hat_test):
-                        sigma, phi, tau = theta_hat_test
-                        cov = sigma * (np.exp(-phi * dist) + tau * np.eye(n))  # need dist, n
-
-                        Y_hat_local = Y_hat.detach().numpy()
-                        err = Y_hat_local - Y
-                        term1 = 0
-                        term2 = 0
-                        for i in range(n):
-                            ind = rank[i, :][rank[i, :] <= i]
-                            id = np.append(ind, i)
-
-                            sub_cov = cov[ind, :][:, ind]
-                            if np.linalg.det(sub_cov):
-                                bi = np.linalg.solve(cov[ind, :][:, ind], cov[ind, i])
-                            else:
-                                bi = np.zeros(ind.shape)
-                            I_B_i = np.append(-bi, 1)
-                            F_i = cov[i, i] - np.inner(cov[ind, i], bi)
-                            err_decor = np.sqrt(np.reciprocal(F_i)) * np.dot(I_B_i, err[id])
-                            term1 += np.log(F_i)
-                            term2 += err_decor ** 2
-                        return (term1 + term2)
-
-                    def constraint1(x):
-                        return x[2]
-
-                    def constraint2(x):
-                        return x[0]
-
-                    cons = [{'type': 'ineq', 'fun': constraint1},
-                            {'type': 'ineq', 'fun': constraint2}]
-
-                    res = minimize(test2, theta_hat, constraints=cons)
-                    # sigma_temp, phi_temp, tau_temp = theta_hat.detach().numpy()
-                    # print('det')
-                    # print(np.linalg.det(sigma_temp*(np.exp(-phi_temp * dist) + tau_temp * np.eye(n))))
-                    theta_hat_new = res.x
-                elif Update_method == 'BRISC':
-                    residual_temp = model(torch.from_numpy(X).float()).reshape(-1) - torch.from_numpy(Y)
-                    residual_temp = residual_temp.detach().numpy()
-                    theta_hat_new = BRISC_estimation(residual_temp, X, coord)
-
-                print(theta_hat_new)
-                if np.sum((theta_hat_new - theta_hat) ** 2) / np.sum((theta_hat) ** 2) < Update_bound:
-                    theta_hat = theta_hat_new
-
-                    #cov_hat = make_cov(theta_hat, dist)
-
-                    #B_hat, F_diag = make_bf(cov_hat, rank)
-                    B_hat, F_diag = make_bf_dense(coord, rank, theta_hat)
-                    B_hat = torch.from_numpy(B_hat)
-                    I_B = torch.eye(n) - B_hat
-                    F_diag = torch.from_numpy(F_diag)
-                    print('theta updated')
-                    if Update_lr_ctrl == True:
-                        for g in optimizer.param_groups:
-                            learning_rate = g['lr']
-                        for g in optimizer.param_groups:
-                            g['lr'] = 4 * learning_rate
-                        early_stopping.counter = -patience_half * 2 - int(patience / 2)
-                print(theta_hat)
-
-        val_losses_test.append(val_acu_test / batch_num)
-        if (val_acu_test / batch_num) == np.min(val_losses_test): model_optim = model
-        lr_scheduler(val_acu_test / batch_num)
-        early_stopping(val_acu_test / batch_num)
-        #print(theta_hat)
-        if early_stopping.early_stop:
-            break
-
-    return losses_test, val_losses_test, model_optim, theta_hat
+    return epoch, val_losses, model
+    #return theta_hat, val_losses, model
 
 #### Evaluation #######################################################################################################
 def RMSE(x,y):
@@ -1139,14 +790,10 @@ def PDP(model, X, rand_s):
     return Y
 
 def krig_pred(model, X_train, X_test, Y_train, coord_train, coord_test, theta_hat0, q = 0.95):
-    theta_hat = theta_hat0.copy() ####12.15 update
-    #coord = np.concatenate([coord_train, coord_test],0)
-    #mask = np.concatenate([np.repeat(True, coord_train.shape[0]), np.repeat(False, coord_test.shape[0])], 0)
+    theta_hat = theta_hat0.copy()
     residual_train = Y_train - model(torch.from_numpy(X_train).float()).detach().numpy().reshape(-1)
     sigma_sq, phi, tau = theta_hat
     tau_sq = tau * sigma_sq
-    #n = coord.shape[0]
-    #n_train = coord[mask, :].shape[0]
     n_test = coord_test.shape[0]
 
     rank = make_rank(coord_train, nn = 20, coord_test = coord_test)
@@ -1161,31 +808,6 @@ def krig_pred(model, X_train, X_test, Y_train, coord_train, coord_test, theta_ha
         bi = np.linalg.solve(C_N, C_Ni)
         residual_test[i] = np.dot(bi.T, residual_train[ind])
         sigma_test[i] =  sigma_test[i] - np.dot(bi.reshape(-1), C_Ni)
-        '''
-        #C_N = cov[mask, :][:, mask]
-            C_N = make_cov(theta_hat, distance(coord[mask,:], coord[mask,:]))
-            C_N = C_N + tau_sq*np.eye(C_N.shape[0])
-            #C_Ni = C[~(mask), :][:, mask]
-            rank = make_rank(coord[mask,:], nn = 20)
-            B, F_diag = make_bf(coord[mask,:], rank, theta_hat)
-            I_B = Sparse_B(np.concatenate([np.ones((n, 1)), -B.B], axis=1),
-                            np.concatenate([np.arange(0, n).reshape(n, 1), B.Ind_list], axis=1))
-        
-            C_Ni = make_cov(theta_hat, distance(coord[mask,:], coord[~mask,:]))
-            #decor_C_Ni = (np.array(np.matmul(I_B, C_Ni)).T * np.sqrt(np.reciprocal(F_diag))).T
-            #decor_residual = (np.array(np.matmul(I_B, residual_train)).T * np.sqrt(np.reciprocal(F_diag))).T
-            decor_C_Ni = I_B.Fmul(F_diag).matmul(C_Ni)
-            decor_residual = I_B.Fmul(F_diag).matmul(residual_train)
-            if n <= 1000:
-                residual_test = np.matmul(C_Ni.T, np.linalg.solve(C_N, residual_train))
-                sigma = np.sqrt(make_cov(theta_hat, np.repeat(0, n_test)) -
-                            np.diagonal(np.matmul(C_Ni.T, np.linalg.solve(C_N, C_Ni))))
-            else:
-                residual_test = np.matmul(decor_C_Ni.T, decor_residual)
-                sigma = np.sqrt(make_cov(theta_hat, np.repeat(0, n_test)) -
-                                np.sum(decor_C_Ni * decor_C_Ni, axis=0))
-                                #np.diagonal(np.matmul(decor_C_Ni.T, decor_C_Ni)))
-        '''
     p = scipy.stats.norm.ppf((1+q)/2, loc=0, scale=1)
     sigma_test = np.sqrt(sigma_test)
     del C_N
