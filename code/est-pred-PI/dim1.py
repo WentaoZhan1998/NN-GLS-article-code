@@ -93,7 +93,7 @@ for sigma in [1, 5]:
             if n_train <= 1000: ADDRFGLS = True
             Sparse = False
             if n > 10000: Sparse = True
-            lr = 0.1
+            lr = 0.01
 
             N = 1000
             n_small = int(N / 100)

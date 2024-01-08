@@ -39,9 +39,7 @@ def block_rand(n, k):
 name = '0605'
 df1 = pd.read_csv('covariate' + name + '.csv')
 df2 = pd.read_csv('pm25_' + name + '.csv')
-split = '3'
-
-name = name + '_stats'
+split = 6
 
 ### Data process #######################################################################################################
 covariates = df1.values[:,3:]
@@ -98,31 +96,6 @@ neigh.fit(coord)
 A = neigh.kneighbors_graph(coord)
 A.toarray()
 edge_index = torch.from_numpy(np.stack(A.nonzero()))
-
-MISE_BRISC = np.empty(0)
-RMSE_BRISC = np.empty(0)
-MISE_GAM = np.empty(0)
-RMSE_GAM = np.empty(0)
-RMSE_GAM_krig = np.empty(0)
-RMSE_GAM_latlong = np.empty(0)
-MISE_GAMGLS = np.empty(0)
-RMSE_GAMGLS = np.empty(0)
-RMSE_GAMGLS_krig = np.empty(0)
-MISE_RF = np.empty(0)
-RMSE_RF = np.empty(0)
-RMSE_RF_krig = np.empty(0)
-MISE_RFGLS = np.empty(0)
-RMSE_RFGLS = np.empty(0)
-RMSE_RFGLS_krig = np.empty(0)
-MISE_NN = np.empty(0)
-RMSE_NN = np.empty(0)
-RMSE_NNlatlong = np.empty(0)
-RMSE_NNDK = np.empty(0)
-RMSE_NN_krig = np.empty(0)
-MISE_NNGLS = np.empty(0)
-RMSE_NNGLS_krig = np.empty(0)
-RMSE_NNGLS2_krig = np.empty(0)
-RMSE_NNGLS3_krig = np.empty(0)
 
 df_P = pd.DataFrame(columns=['ind', 'p-value'])
 

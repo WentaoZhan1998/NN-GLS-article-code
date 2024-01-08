@@ -17,6 +17,7 @@ import time
 import logging
 import torch_sparse
 
+# NNGP #################################################################################################################
 def solve_I_B_sparseB(I_B, y):
     y = y.reshape(-1)
     n = y.shape[0]
@@ -170,34 +171,6 @@ def make_bf_sparse(coord, rank, theta):
 
     return I_B, F
 
-def make_bf_sparse_new(coord, rank, theta):
-    n = coord.shape[0]
-    sigma_sq, phi, tau = theta
-    tau_sq = tau * sigma_sq
-    F = np.zeros(n)
-    row_indices = np.empty(0)
-    col_indices = np.empty(0)
-    values = np.empty(0)
-    for i in range(n):
-        F[i] = make_cov(theta, 0) + tau_sq
-        ind = rank[i, :][rank[i, :] <= i]
-        if len(ind) == 0:
-            continue
-        cov_sub = make_cov(theta, distance(coord[ind, :], coord[ind, :])) + tau_sq * np.eye(len(ind))
-        if np.linalg.matrix_rank(cov_sub) == cov_sub.shape[0]:
-            cov_vec = make_cov(theta, distance(coord[ind, :], coord[i, :])).reshape(-1)
-            bi = np.linalg.solve(cov_sub, cov_vec)
-            F[i] = F[i] - np.inner(cov_vec, bi)
-            row_indices = np.append(row_indices, np.repeat(i, len(ind)))
-            col_indices = np.append(col_indices, ind)
-            values = np.append(values, -bi)
-
-    row_indices = np.append(row_indices, np.array(range(n)))
-    col_indices = np.append(col_indices, np.array(range(n)))
-    values = np.append(values, np.ones(n))
-    I_B = csr_array((values, (row_indices.astype(int), col_indices.astype(int))))
-    return I_B, F
-
 def sparse_decor(coord, nn, theta):
     n = coord.shape[0]
     sigma_sq, phi, tau = theta
@@ -294,9 +267,7 @@ def bf_from_theta(theta, coord, nn, method = '0', nu = 1.5, sparse = True, versi
                   scipy.special.kv(nu,dist * phi)
             cov[range(n), range(n)] = sigma_sq + tau_sq
     rank = make_rank(coord, nn)
-    if sparse and version == 'new':
-        I_B, F_diag = make_bf_sparse_new(coord, rank, theta)
-    elif sparse and version == 'sparseB':
+    if sparse and version == 'sparseB':
         I_B, F_diag = make_bf_sparse(coord, rank, theta)
     else:
         I_B, F_diag = make_bf_dense(coord, rank, theta)
@@ -305,6 +276,7 @@ def bf_from_theta(theta, coord, nn, method = '0', nu = 1.5, sparse = True, versi
 
     return I_B, F_diag, rank, cov
 
+# Data #################################################################################################################
 def Simulate(n, p, fx, nn, theta, method = '0', nu = 1.5, a = 0, b = 1, sparse = True, meanshift = False):
     #n = 1000
     coord = np.random.uniform(low = a, high = b, size=(n, 2))
@@ -342,7 +314,6 @@ def Simulate_mis(n, p, fx, nn, theta, corerr_gen, a=0, b=1):
 
     return X, Y, rank, coord, corerr
 
-# Data #################################################################################################################
 def partition (list_in, n):
     idx = torch.randperm(list_in.shape[0])
     list_in = list_in[idx]
@@ -354,7 +325,6 @@ def batch_gen (data, k):
                                           int(torch.sum(data[mask])/k))
     return(data)
 # Models ###############################################################################################################
-
 class Netp_sig(torch.nn.Module):
     def __init__(self, p, k = 50, q = 1):
         super(Netp_sig, self).__init__()
@@ -444,13 +414,6 @@ class EarlyStopping():
 def f1(X): return 10 * np.sin(np.pi * X)
 
 def fx_l(x): return 5*x + 2
-
-def fx_c(x): return 0*x
-
-def fx4(X): return 10 * np.sin(4 * np.pi * X)
-
-#def f3(X): return (X[:, 0] + pow(X[:, 1], 1) + 2 * X[:, 2] + 2)
-def f3(X): return ((X[:,2]+1)*np.sin(np.pi*X[:,0]*X[:,1]))
 
 def f5(X): return (10*np.sin(np.pi*X[:,0]*X[:,1]) + 20*(X[:,2]-0.5)**2 + 10*X[:,3] +5*X[:,4])/6
 
@@ -621,7 +584,6 @@ def train_gen_new(model, optimizer, data, epoch_num, loss_fn = MSE,
             loss = train(model, data, idx)
         train_loss, val_loss, tmp_test_loss = test(model, data)
         losses.append(train_loss)
-        print(test(model, data))
         if val_loss < best_val_loss:
             best_val_loss = val_loss
             test_loss = tmp_test_loss
@@ -776,18 +738,6 @@ def RMSE(x,y):
     y = y.reshape(-1)
     n = x.shape[0]
     return(np.sqrt(np.sum(np.square(x-y))/n))
-
-def PDP(model, X, rand_s):
-    n = X.shape[0]
-    p = X.shape[1]
-    N = rand_s.shape[0]
-    Y = np.zeros(n)
-    for i in range(n):
-        X_rep = np.repeat(X[i,:].reshape(1,p), N).reshape(N,p)
-        Xs_rep = np.concatenate((X_rep, rand_s), axis=1)
-        Y_rep = model(torch.from_numpy(Xs_rep).float()).detach().numpy().reshape(-1)
-        Y[i] = np.mean(Y_rep)
-    return Y
 
 def krig_pred(model, X_train, X_test, Y_train, coord_train, coord_test, theta_hat0, q = 0.95):
     theta_hat = theta_hat0.copy()

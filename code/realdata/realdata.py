@@ -1,11 +1,11 @@
-#### This file produces simulation results for prediction, and prediction interval for the real data
+#### This file produces results for prediction, and prediction interval for the real data
 #### Include Figures S27, S29, S30, 3(b).
 
 import os
 #os.environ['R_HOME'] = {the R lib path where necessary packages are installed}
 import rpy2.robjects as robjects
 from rpy2.robjects.packages import importr
-import utils
+import utils as utils
 import utils_pygam
 
 import torch
@@ -60,13 +60,13 @@ def block_rand(n, k):
         ly = np.append(ly, iy).astype(int)
     return lx, ly
 
-name = '0605' #### for other dates "0618" "0704" corresponding to 2022.06.18 and 2022.07.04
-split = '3'
+name = '0618' #### for other dates "0618" "0704" corresponding to 2022.06.18 and 2022.07.04
+split = 6
 
 ### Data process #######################################################################################################
-df1 = pd.read_csv('covariate' + name + '.csv')
+df1 = pd.read_csv('.//data//data_by_date//covariate' + name + '.csv')
 #df2 = pd.read_csv('pm25_0628.csv')
-df2 = pd.read_csv('pm25_' + name + '.csv')
+df2 = pd.read_csv('.//data//data_by_date//pm25_' + name + '.csv')
 
 covariates = df1.values[:,3:]
 aqs_lonlat=df2.values[:,[1,2]]
@@ -344,8 +344,8 @@ for rand in range(100):
                                 RMSE(Pred_NNGLS[0], Y_test)/RMSE(Y_test, np.mean(Y_test)))
     ###################################################################################
     torch.manual_seed(2023)
-    model_NNGLS3 = Netp(p, k, q)
-    optimizer = torch.optim.Adam(model_NNGLS3.parameters(), lr=0.1)
+    model_NNGLS2 = Netp(p, k, q)
+    optimizer = torch.optim.Adam(model_NNGLS2.parameters(), lr=0.1)
     patience_half = 10
     patience = 20
 

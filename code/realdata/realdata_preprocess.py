@@ -61,7 +61,7 @@ subdf = df.loc[df['Date']=='06/18/2022']
 subdf.to_csv('pm25_0618.csv')
 
 df = pd.read_csv('covariate0618.csv').iloc[:,1:9]
-df0 = pd.read_csv('covariate0605.csv').iloc[:,1:9]
+df0 = df0.iloc[:,1:9]
 mask = np.zeros(df.shape[0], dtype=bool)
 for i in range(df.shape[0]):
     print(i)
