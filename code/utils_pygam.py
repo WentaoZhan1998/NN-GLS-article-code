@@ -1,8 +1,8 @@
 from pygam import LinearGAM
 import numpy as np
 import scipy as sp
-EPS = np.finfo(np.float64).eps
 from copy import deepcopy
+EPS = np.finfo(np.float64).eps
 
 from collections import defaultdict
 from pygam.utils import check_y
