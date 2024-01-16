@@ -415,7 +415,7 @@ for sigma in [1, 5]:
                 ###################################################################################
                 torch.manual_seed(2023)
                 model_NNGLS = Netp(p, k, q)
-                optimizer = torch.optim.Adam(model_NNGLS.parameters(), lr=0.1)
+                optimizer = torch.optim.Adam(model_NNGLS.parameters(), lr=lr)
                 patience_half = 10
                 patience = 20
 

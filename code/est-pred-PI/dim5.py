@@ -56,7 +56,6 @@ for sigma in [1, 5]:
             k = 50
             q = 1
             b = 10 #### Generate coordinates from [0, b]^2 square
-            ordered = True
 
             if method == '2':
                 np.random.seed(2022)
@@ -415,7 +414,7 @@ for sigma in [1, 5]:
                 ###################################################################################
                 torch.manual_seed(2023)
                 model_NNGLS = Netp(p, k, q)
-                optimizer = torch.optim.Adam(model_NNGLS.parameters(), lr=0.1)
+                optimizer = torch.optim.Adam(model_NNGLS.parameters(), lr=lr)
                 patience_half = 10
                 patience = 20
 

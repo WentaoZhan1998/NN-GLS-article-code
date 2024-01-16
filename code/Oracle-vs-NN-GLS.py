@@ -44,7 +44,6 @@ for sigma in [1, 5]:
             k = 50
             q = 1
             b = 10 #### Generate coordinates from [0, b]^2 square
-            ordered = True
 
             if method == '2':
                 np.random.seed(2022)
@@ -80,7 +79,7 @@ for sigma in [1, 5]:
             ADDRFGLS = False
             Sparse = False
             if n > 10000: Sparse = True
-            lr = 0.01
+            lr = 0.1
 
             N = 1000
             n_small = int(N / 100)

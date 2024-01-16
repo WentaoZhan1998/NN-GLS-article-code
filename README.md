@@ -14,7 +14,7 @@ and running time results.
 * Folder *realdata* containts code for the realdata experiments, including the visualization, assumption check, 
 and prediction results.
 
-## File description:
+## Code description:
 * dim1.py/dim5.py/dim15.py: Run the estimation and prediction (interval) experiments with the true functions 
 $f_0 = f_1, f_2, f_3$ respectively.
 
@@ -52,8 +52,7 @@ We introduce the SparseB class to store and operate on the NNGP precision in a e
 * utils_PDP.py: Introduces functions for the partial dependency plot (PDP).
 * utils_pygam.py: Modifies the GAM class from pyGAM to make it compatible with GAM-GLS.
 
-## Figures vs functions
-
+## Figures vs code
 The following functions were run to produce the figures in the manuscript and the supplementary material.
 * Figure 2(a): dim1.py; Figure 2(b): GAM-GLS-vs-NN-GLS.py; Figure 2(c): dim5.py; Figure 2(d): NN-splines-vs-NNGLS.py; 
 Figure 2(e, f): running_time.py
@@ -81,4 +80,11 @@ Figure 2(e, f): running_time.py
 * Figure S31: realdata_stats.py
 * Figure S32: PDP.py
 
+## Data availability
+* The PM2.5 data is collected from the [U.S. Environmental Protection Agency](https://www.epa.gov/outdoor-air-quality-data/download-daily-data)
+datasets for each state are collected and binded together to obtain 'pm25_2022.csv'. daily PM2.5 files are subsets of 'pm25_2022.csv' produced by
+'realdata_preprocess.py'. One can skip the preprocessing and use daily files directory. 
+* The meteorologica data is collected from the [National Centers for Environmental Prediction’s (NCEP) North American
+Regional Reanalysis (NARR) product](https://psl.noaa.gov/data/gridded/data.narr.html). The '.nc' files should be downloaded from the website 
+and saved in the root directory to run 'realdata_preprocess.py'. Otherwise, one can skip the preprocessing and use covariate files directory. 
 
