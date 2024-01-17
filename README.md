@@ -71,7 +71,7 @@ Figure 2(e, f): running_time.py
 * Figure S20: Oracle-vs-NN-GLS.py
 * Figure S21: dim15.py
 * Figure S22, S23: dim1.py & dim5.py
-* Figure S24: 
+* Figure S24: fixed-surface.py
 * Figure S25, S26: dim1.py & dim5.py 
 * Figure S27: realdata.py
 * Figure S28: heatmap.py
