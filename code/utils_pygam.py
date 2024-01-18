@@ -8,11 +8,8 @@ from collections import defaultdict
 from pygam.utils import check_y
 from pygam.utils import check_X
 from pygam.utils import check_X_y
-from pygam.utils import make_2d
-from pygam.utils import flatten
 from pygam.utils import check_array
 from pygam.utils import check_lengths
-from pygam.distributions import NormalDist
 
 class my_LinearGAM(LinearGAM):
     def __init__(self):

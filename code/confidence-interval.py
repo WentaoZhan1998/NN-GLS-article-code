@@ -1,11 +1,6 @@
 #### This file produces simulation results of confidence intervals
 
-import os
-#os.environ['R_HOME'] = {the R lib path where necessary packages are installed}
-import rpy2.robjects as robjects
-from rpy2.robjects.packages import importr
 import utils
-import utils_pygam
 
 import torch
 from sklearn.neighbors import NearestNeighbors

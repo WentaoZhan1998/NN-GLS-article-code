@@ -16,11 +16,8 @@ warnings.simplefilter(action='ignore', category=FutureWarning)
 
 import pandas as pd
 import numpy as np
-from scipy.spatial import distance_matrix
 from scipy import sparse
-from sklearn.ensemble import RandomForestRegressor
 import lhsmdu
-import copy
 
 def RMSE(x,y):
     x = x.reshape(-1)

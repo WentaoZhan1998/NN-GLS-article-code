@@ -8,7 +8,7 @@ warnings.simplefilter(action='ignore', category=FutureWarning)
 
 import pandas as pd
 import numpy as np
-import utils_NN
+import utils
 
 def order(X, Y, coord):
     s_sum = coord[:, 0] + coord[:, 1]
@@ -24,13 +24,13 @@ tau = 0.01
 method = '0'
 theta = [sigma, phi / np.sqrt(2), tau]
 p = 5
-funXY = utils_NN.f5
+funXY = utils.f5
 b = 10
 
 n = 1000
 
 torch.manual_seed(2023)
-X, Y, I_B, F_diag, rank, coord, cov, corerr = utils_NN.Simulate_NNGP(n, p, funXY, 10, theta, method=method, a=0, b=b)
+X, Y, I_B, F_diag, rank, coord, cov, corerr = utils.Simulate(n, p, funXY, 10, theta, method=method, a=0, b=b)
 X, Y, coord = order(X, Y, coord)
 
 det = np.empty(0)
@@ -38,7 +38,7 @@ eigen_max = np.empty(0)
 eigen_min = np.empty(0)
 for nn in np.arange(1, 250):
     print(nn)
-    I_B, F_diag, rank, cov = utils_NN.bf_from_theta(theta, coord, nn, sparse=False)
+    I_B, F_diag, rank, cov = utils.bf_from_theta(theta, coord, nn, sparse=False)
     I_B = I_B.detach().numpy()
     F_diag = F_diag.detach().numpy()
 

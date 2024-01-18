@@ -85,6 +85,6 @@ Figure 2(e, f): running_time.py
 datasets for each state are collected and binded together to obtain 'pm25_2022.csv'. daily PM2.5 files are subsets of 'pm25_2022.csv' produced by
 'realdata_preprocess.py'. One can skip the preprocessing and use daily files directory. 
 * The meteorologica data is collected from the [National Centers for Environmental Prediction’s (NCEP) North American
-Regional Reanalysis (NARR) product](https://psl.noaa.gov/data/gridded/data.narr.html). The '.nc' files should be downloaded from the website 
+Regional Reanalysis (NARR) product](https://psl.noaa.gov/data/gridded/data.narr.html). The '.nc' (netCDF) files should be downloaded from the website 
 and saved in the root directory to run 'realdata_preprocess.py'. Otherwise, one can skip the preprocessing and use covariate files directory. 
 

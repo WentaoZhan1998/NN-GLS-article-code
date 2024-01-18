@@ -100,7 +100,7 @@ for rand in range(1, 10+1):
 
         torch.manual_seed(2023+rand)
         np.random.seed(2023+rand)
-        X, Y, I_B, F_diag, rank, coord, cov, corerr = utils.Simulate_NNGP(n, p, funXY, nn, theta, method=method, a=0,
+        X, Y, I_B, F_diag, rank, coord, cov, corerr = utils.Simulate(n, p, funXY, nn, theta, method=method, a=0,
                                                                           b=b, sparse = Sparse, meanshift= False)
 
         X_int = np.concatenate((X, np.repeat(1, n).reshape(n, 1)), axis=1)
