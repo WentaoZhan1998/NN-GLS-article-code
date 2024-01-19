@@ -88,3 +88,4 @@ datasets for each state are collected and binded together to obtain 'pm25_2022.c
 Regional Reanalysis (NARR) product](https://psl.noaa.gov/data/gridded/data.narr.html). The '.nc' (netCDF) files should be downloaded from the website 
 and saved in the root directory to run 'realdata_preprocess.py'. Otherwise, one can skip the preprocessing and use covariate files directory. 
 
+## Workflow
