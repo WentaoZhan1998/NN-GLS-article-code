@@ -2,25 +2,31 @@
 Available code for the [NN-GLS paper](https://arxiv.org/pdf/2304.09157.pdf)
 =======
 This is the viable code for the NN-GLS paper. To run the code, \
-Please download the folders in https://github.com/WentaoZhan1998/NN-GLS-article-code to the working directory.
+please download the folders in https://github.com/WentaoZhan1998/NN-GLS-article-code to the working directory.
 
 ## Folder description:
-* Folder *est-pred-PI* contains code producing the majority of the simulation result,
+* Folder */code/est-pred-PI* contains code producing most of the simulation result,
 including estimation, prediction (interval) results.
 
-* Folder *large-sample* contains code running the large sample experiments, including the consistency 
+* Folder */code/large-sample* contains code for the large sample experiments, including the consistency 
 and running time results.
 
-* Folder *realdata* contains code for the realdata experiments, including the visualization, assumption check, 
+* Folder */code/realdata* contains code for the realdata experiments, including the visualization, assumption check, 
 and prediction results.
 
-* Folder *visualization* contains code for some complex visualizations, basically the grouped barplots and boxplots.
+* Folder */code/visualization* contains code for some complex visualizations, basically the grouped barplots and boxplots.
 Note that some figures (for example Figure S6, S9, S12, S15, S19) can be easily generated from the experiment output with several lines of code, and we omit them here.
 Some figures (for example Figure S24, S28) are generated directly from the code.
 
 ## Code description:
 * dim1.py/dim5.py/dim15.py: Run the estimation and prediction (interval) experiments with the true functions 
 $f_0 = f_1, f_2, f_3$ respectively.
+
+* dim1-mis1.py/dim5-mis1.py: Run the estimation and prediction (interval) experiments with the true functions 
+$f_0 = f_1, f_2$ respectively, with a misspecified Matern covariance (S4.12).
+
+* dim1-mis2.py/dim5-mis2.py: Run the estimation and prediction (interval) experiments with the true functions 
+$f_0 = f_1, f_2$ respectively, with a misspecified spatial effect (S4.13).
 
 * running_time.py: Obtain the overall running time for different methods, as well as the corresponding 
 estimation errors (to show consistency). The sample size range from 500 to 500000.
@@ -47,7 +53,7 @@ We introduce the SparseB class to store and operate on the NNGP precision in a e
   + The *Data* module consists of functions generate and preprocess the data for the training purpose.
   + The *Models*, *Stopping* modules contains code for necessary components of NN and its training.
   + The *Functions* module contains functions studied in the manuscript.
-  + The *R* module contains functions introduced from R.
+  + The *R* module contains functions inported from R.
   + The *Decorrelation* module consists of functions doing decorrelation operation for different data types, 
   followed by the *resample* module doing the spatial resampling (bootstrap).
   + The *Training* module contains main functions to train the NN (NN-GLS).
@@ -89,9 +95,9 @@ Figure 2(e, f): running_time.py
 * Figure S31: realdata_stats.py
 * Figure S32: PDP.py
 
-* Visualization of Figure S7, S8, S9, S10, S11, S14, S17, S18, S21, S22, S23, S25, S26 relies additionally on est-pred-PI.Rmd.
-* Visualization of Figure S5 relies additionally on parameter-estimation.Rmd.
-* Visualization of Figure S27, S28, S29, S30, S31(a, c, e) relies additionally on real-data.Rmd.
+* Visualization of Figure S7, S8, S9, S10, S11, S14, S17, S18, S21, S22, S23, S25, S26 additionally uses est-pred-PI.Rmd.
+* Visualization of Figure S5 additionally uses parameter-estimation.Rmd.
+* Visualization of Figure S27, S28, S29, S30, S31(a, c, e) additionally uses real-data.Rmd.
 
 ## Data availability
 * The PM2.5 data is collected from the [U.S. Environmental Protection Agency](https://www.epa.gov/outdoor-air-quality-data/download-daily-data)
@@ -99,7 +105,8 @@ datasets for each state are collected and binded together to obtain 'pm25_2022.c
 'realdata_preprocess.py'. One can skip the preprocessing and use daily files directory. 
 * The meteorologica data is collected from the [National Centers for Environmental Prediction’s (NCEP) North American
 Regional Reanalysis (NARR) product](https://psl.noaa.gov/data/gridded/data.narr.html). The '.nc' (netCDF) files should be downloaded from the website 
-and saved in the root directory to run 'realdata_preprocess.py'. Otherwise, one can skip the preprocessing and use covariate files directory. 
+and saved in the root directory to run 'realdata_preprocess.py'. Otherwise, one may skip the preprocessing and use covariate files directly. 
+* Note that for 06/05/2019, we use the flies provided by the DeepKriging project, which come from the same resource (EPA and NARR).
 
 ## Workflow
 * Most of the files other than the visualization code in the "code" folder can run independently. To reproduce any figure, one can directly run the corresponding file indecated in
