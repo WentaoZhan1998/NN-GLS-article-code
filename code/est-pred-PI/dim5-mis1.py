@@ -47,7 +47,7 @@ def int_coverage(x, u, l):
 
 fun = 'friedman'
 p = 5; funXY = utils.f5; Netp = utils.Netp_sig
-method = '0' #### '0' is the normal case, '1' is the first misspecification case, and '2' is the second one
+method = '1' #### '0' is the normal case, '1' is the first misspecification case, and '2' is the second one
 
 for sigma in [1, 5]:
     for phi in [1, 3, 6]:

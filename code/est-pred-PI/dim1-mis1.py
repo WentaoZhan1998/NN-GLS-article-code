@@ -45,9 +45,9 @@ def int_coverage(x, u, l):
     score = np.logical_and(x>=l, x<=u)
     return (np.mean(score))
 
-fun = 'friedman'
-p = 5; funXY = utils.f5; Netp = utils.Netp_sig
-method = '0' #### '0' is the normal case, '1' is the first misspecification case, and '2' is the second one
+fun = 'sin'
+p = 1; funXY = utils.f1; Netp = utils.Netp_sig
+method = '1' #### '0' is the normal case, '1' is the first misspecification case, and '2' is the second one
 
 for sigma in [1, 5]:
     for phi in [1, 3, 6]:

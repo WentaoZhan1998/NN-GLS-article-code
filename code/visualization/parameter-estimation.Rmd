@@ -1,0 +1,71 @@
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(message=F, warning = FALSE, echo = TRUE)
+```
+
+## R Markdown
+```{r, echo = FALSE}
+library(tidyverse)
+library(reshape)
+library(RColorBrewer)
+group.colors <- c(brewer.pal(9,"YlOrRd")[c(3, 4, 5, 8)],
+                       brewer.pal(9,"Reds")[c(3)],
+                       brewer.pal(9,"Purples")[c(6)], 
+                       brewer.pal(9,"Blues")[c(4,6,7)],
+                       brewer.pal(8,"Set2")[c(5)], brewer.pal(9,"Greens")[c(7)])
+names(group.colors) = c('NN-nonspatial', 'NN-latlon', 'NN-splines', 'NN-GLS',
+                             'NN-GLS_oracle',
+                             'Linear-spatial',
+                             'GAM', 'GAM-latlon', 'GAMGLS',
+                             'RF', 'RFGLS')
+```
+
+## Visualization for the parameter estimation result (Figure S5).
+```{r}
+func = 'sin' # Switch between 'sin', 'friedman' for true functions.
+
+names_alt = c('NN', 'NN-GLS')
+group_colors_par = group.colors[c(1,4)]
+names(group_colors_par) = names_alt
+
+p = list()
+data = read.csv(paste0(".//simulation//par//", func, "_par_theta.csv"))[,-1]
+data$phi0 = round(data$phi0,1)
+
+data = filter(data, data$sigma <= 10 & data$phi <20)
+data$Method[data$Method == 'NNGLS_update1'] = 'NN-GLS'
+data$Method[data$Method == 'NN_BRISC'] = 'NN'
+data$Method = factor(data$Method, levels = names_alt)
+
+data$value = data$sigma
+p[[1]] = ggplot(data, aes(x = Method, y = sigma, fill = Method)) +
+  geom_boxplot() + geom_hline(aes(yintercept=sigma_sq0)) +
+  scale_fill_manual(values=group_colors_par[names_alt]) +
+  facet_grid(sigma_sq0 ~ phi0, scales = 'free', labeller = label_both) + 
+  ggtitle('') + ylab('sigma_sq') + theme(axis.text.x=element_text(angle = 0, hjust = 0.5)) +
+theme(legend.text = element_text(size=15), legend.title = element_text(size=20),
+    axis.text=element_text(size=12), axis.title=element_blank(),
+    strip.text.x = element_text(size = 13), strip.text.y = element_text(size = 13))
+
+data$value = data$phi
+p[[2]] = ggplot(data, aes(x = Method,y = phi, fill = Method)) +
+  geom_boxplot() + geom_hline(aes(yintercept=phi0)) +
+  scale_fill_manual(values=group_colors_par) +
+  facet_grid(sigma_sq0 ~phi0, scales = 'free', labeller = label_both) + RotatedAxis() +
+  ggtitle('')+ theme(axis.text.x=element_text(angle = 0, hjust = 0.5)) +
+theme(legend.text = element_text(size=15), legend.title = element_text(size=20),
+    axis.text=element_text(size=12), axis.title=element_blank(),
+    strip.text.x = element_text(size = 13), strip.text.y = element_text(size = 13))
+
+p[[3]] = ggplot(data, aes(x = Method, y = tau*sigma, fill = Method)) +
+  geom_boxplot() + geom_hline(aes(yintercept=tau0*sigma_sq0)) +
+  scale_fill_manual(values=group_colors_par) +
+  facet_grid(sigma_sq0 ~ phi0, scales = 'free', labeller = label_both) + ggtitle('') + ylab('tau_sq') + theme(axis.text.x=element_text(angle = 0)) +
+theme(legend.text = element_text(size=15), legend.title = element_text(size=20),
+    axis.text=element_text(size=12), axis.title=element_blank(),
+    strip.text.x = element_text(size = 13), strip.text.y = element_text(size = 13))
+
+
+ggarrange(p[[1]], p[[2]], p[[3]], nrow = 3, common.legend = TRUE)
+```
+

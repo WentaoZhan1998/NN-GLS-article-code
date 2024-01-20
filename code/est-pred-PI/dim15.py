@@ -47,11 +47,11 @@ def int_coverage(x, u, l):
 
 fun = 'p15'
 p = 15; funXY = utils.f15; Netp = utils.Netp_sig
+method = '0'  #### '0' is the normal case, '1' is the first misspecification case, and '2' is the second one
 
 for sigma in [1, 5]:
     for phi in [1, 3, 6]:
         for tau in [0.01, 0.1, 0.25]:
-            method = '0' #### '0' is the normal case, '1' is the first misspecification case, and '2' is the second one
             theta = [sigma, phi / np.sqrt(2), tau]
             k = 50
             q = 1
@@ -455,9 +455,9 @@ for sigma in [1, 5]:
                     df_PI2_temp['RFGLS'] = int_score(Y_test, Pred_RFGLS[1], Pred_RFGLS[2], 0.95)
                 ####################################################################################################################
                 df_PI1 = df_PI1.append(df_PI1_temp, ignore_index=True)
-                df_PI1.to_csv(".//simulation//compare//" + str(p) + "dim//" + name + '_PI_cov.csv')
+                df_PI1.to_csv(".//simulation//compare//" + name + '_PI_cov.csv')
                 df_PI2 = df_PI2.append(df_PI2_temp, ignore_index=True)
-                df_PI2.to_csv(".//simulation//compare//" + str(p) + "dim//" + name + '_PI_score.csv')
+                df_PI2.to_csv(".//simulation//compare//" + name + '_PI_score.csv')
                 df_MISE = pd.DataFrame(
                     {'BRISC': MISE_BRISC, 'GAM': MISE_GAM, 'GAMGLS': MISE_GAMGLS, 'RF': MISE_RF,
                      'NN': MISE_NN, 'NNGLS': MISE_NNGLS})
@@ -479,7 +479,7 @@ for sigma in [1, 5]:
                     df_RMSE['RFGLS_krig'] = RMSE_RFGLS_krig
                     df_GMSE['RFGLS'] = GMSE_RFGLS
                     df_GMSE['RFGLS_krig'] = GMSE_RFGLS_krig
-                df_MISE.to_csv(".//simulation//compare//" + str(p) + "dim//" + name + '_MISE.csv')
-                df_RMSE.to_csv(".//simulation//compare//" + str(p) + "dim//" + name + '_RMSE.csv')
-                df_GMSE.to_csv(".//simulation//compare//" + str(p) + "dim//" + name + '_GMSE.csv')
+                df_MISE.to_csv(".//simulation//compare//" + name + '_MISE.csv')
+                df_RMSE.to_csv(".//simulation//compare//" + name + '_RMSE.csv')
+                df_GMSE.to_csv(".//simulation//compare//" + name + '_GMSE.csv')
 

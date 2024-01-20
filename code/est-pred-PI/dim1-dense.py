@@ -45,8 +45,8 @@ def int_coverage(x, u, l):
     score = np.logical_and(x>=l, x<=u)
     return (np.mean(score))
 
-fun = 'friedman'
-p = 5; funXY = utils.f5; Netp = utils.Netp_sig
+fun = 'sin'
+p = 1; funXY = utils.f1; Netp = utils.Netp_sig
 method = '0' #### '0' is the normal case, '1' is the first misspecification case, and '2' is the second one
 
 for sigma in [1, 5]:
@@ -84,8 +84,8 @@ for sigma in [1, 5]:
                     del C
                     return (corerr)
 
-            n = 2000
-            n_train = 1000
+            n = 5000
+            n_train = 2500
             nn = 20
             batch_size = int(n/20)
             ADDRFGLS = False

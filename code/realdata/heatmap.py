@@ -31,42 +31,43 @@ inUS = gdf1['geometry'].apply(lambda s: s.within(us.geometry.unary_union)) # che
 gdf1.loc[inUS,:].plot()
 plt.savefig(".//temp_figure//US.png")
 
-df1 = pd.read_csv('covariate0618.csv')
-df2 = pd.read_csv('pm25_0618.csv')
-df2 = df2.loc[df2.Latitude < 50]
-covariates = df1.values[:,3:]
-aqs_lonlat=df2.values[:,[1,2]]
+for name in ['0605', '0618', '0704']: #### "0605", "0618" "0704" corresponding to 2019.06.05, 2022.06.18 and 2022.07.04
+    df1 = pd.read_csv('covariate'+ name +'.csv')
+    df2 = pd.read_csv('pm25_' + name + '.csv')
+    df2 = df2.loc[df2.Latitude < 50]
+    covariates = df1.values[:,3:]
+    aqs_lonlat=df2.values[:,[1,2]]
 
-from scipy import spatial
-near = df1.values[:,[1,2]]
-tree = spatial.KDTree(list(zip(near[:,0].ravel(), near[:,1].ravel())))
-tree.data
-idx = tree.query(aqs_lonlat)[1]
-df2_new = df2.assign(neighbor = idx)
-df_pm25 = df2_new.groupby('neighbor')['PM25'].mean()
-df_pm25_class = pd.cut(df_pm25,bins=[0,12.1,35.5],labels=["0","1"])
-idx_new = df_pm25.index.values
-pm25 = df_pm25.values
-z = pm25[:,None]
+    from scipy import spatial
+    near = df1.values[:,[1,2]]
+    tree = spatial.KDTree(list(zip(near[:,0].ravel(), near[:,1].ravel())))
+    tree.data
+    idx = tree.query(aqs_lonlat)[1]
+    df2_new = df2.assign(neighbor = idx)
+    df_pm25 = df2_new.groupby('neighbor')['PM25'].mean()
+    df_pm25_class = pd.cut(df_pm25,bins=[0,12.1,35.5],labels=["0","1"])
+    idx_new = df_pm25.index.values
+    pm25 = df_pm25.values
+    z = pm25[:,None]
 
-lon = df1.values[:,1]
-lat = df1.values[:,2]
-normalized_lon = (lon-min(lon))/(max(lon)-min(lon))
-normalized_lat = (lat-min(lat))/(max(lat)-min(lat))
-s_obs = np.vstack((normalized_lon[idx_new],normalized_lat[idx_new])).T
+    lon = df1.values[:,1]
+    lat = df1.values[:,2]
+    normalized_lon = (lon-min(lon))/(max(lon)-min(lon))
+    normalized_lat = (lat-min(lat))/(max(lat)-min(lat))
+    s_obs = np.vstack((normalized_lon[idx_new],normalized_lat[idx_new])).T
 
-f = interpolate.Rbf(lon[idx_new], lat[idx_new], z, function = 'inverse')
-x_test = gdf1.loc[inUS,:].X
-y_test = gdf1.loc[inUS,:].Y
-z_test = f(x_test, y_test)
+    f = interpolate.Rbf(lon[idx_new], lat[idx_new], z, function = 'inverse')
+    x_test = gdf1.loc[inUS,:].X
+    y_test = gdf1.loc[inUS,:].Y
+    z_test = f(x_test, y_test)
 
-plt.clf()
-fig, ax = plt.subplots(figsize=(9, 5))
-c = ax.scatter(x = x_test, y = y_test, s = 10, c = z_test, marker = 's', alpha = 0.7)
-ax.plot(np.array(df2['Longitude']), np.array(df2['Latitude']), 'ro', c = 'orange', markersize = 4)
-ax.set_title('')
-fig.colorbar(c, ax=ax)
-plt.savefig(".//temp_figure//US_heat_0618.png")
+    plt.clf()
+    fig, ax = plt.subplots(figsize=(9, 5))
+    c = ax.scatter(x = x_test, y = y_test, s = 10, c = z_test, marker = 's', alpha = 0.7)
+    ax.plot(np.array(df2['Longitude']), np.array(df2['Latitude']), 'ro', c = 'orange', markersize = 4)
+    ax.set_title('')
+    fig.colorbar(c, ax=ax)
+    plt.savefig(".//temp_figure//US_heat_" + name + ".png")
 
 
 

@@ -1,18 +1,22 @@
 # NN-GLS-article-code
 Available code for the [NN-GLS paper](https://arxiv.org/pdf/2304.09157.pdf)
 =======
-This is the vailable code for the NN-GLS paper. To run the code, \
+This is the viable code for the NN-GLS paper. To run the code, \
 Please download the folders in https://github.com/WentaoZhan1998/NN-GLS-article-code to the working directory.
 
 ## Folder description:
 * Folder *est-pred-PI* contains code producing the majority of the simulation result,
 including estimation, prediction (interval) results.
 
-* Folder *large-sample* containts code running the large sample experiments, including the consistency 
+* Folder *large-sample* contains code running the large sample experiments, including the consistency 
 and running time results.
 
-* Folder *realdata* containts code for the realdata experiments, including the visualization, assumption check, 
+* Folder *realdata* contains code for the realdata experiments, including the visualization, assumption check, 
 and prediction results.
+
+* Folder *visualization* contains code for some complex visualizations, basically the grouped barplots and boxplots.
+Note that some figures (for example Figure S6, S9, S12, S15, S19) can be easily generated from the experiment output with several lines of code, and we omit them here.
+Some figures (for example Figure S24, S28) are generated directly from the code.
 
 ## Code description:
 * dim1.py/dim5.py/dim15.py: Run the estimation and prediction (interval) experiments with the true functions 
@@ -32,7 +36,7 @@ The file works on June 18th, 2022, but the workflow applies to the other days.
 * confidence-interval.py: Confidence coverage and interval score over several simulation settings.
 * GAM-GLS-vs-NN-GLS.py: Run the estimation experiment on Friedman's function with different interaction powers for the 
 comparison between GAM-GLS and NN-GLS.
-* NN-splines-vs-NNGLS.py: Run the prediction experiment with different sample sizes for the comparison between NN-splines 
+* NN-splines-vs-NN-GLS.py: Run the prediction experiment with different sample sizes for the comparison between NN-splines 
 and NN-GLS.
 * NNGP-mat-property.py: Experiments on the properties of NNGP precision matrix $\mathbf{Q}$, include the KL-divergence between $\mathbf{I}$ and 
 $\mathbf{\Sigma}^{\frac{T}{2}}\mathbf{Q}\mathbf{\Sigma}^{\frac{1}{2}}$, and $\mathbf{Q}$'s spectral width.
@@ -48,6 +52,10 @@ We introduce the SparseB class to store and operate on the NNGP precision in a e
   followed by the *resample* module doing the spatial resampling (bootstrap).
   + The *Training* module contains main functions to train the NN (NN-GLS).
   + The *Evaluation* module contains functions fo the kriging prediction.
+
+* est-pred-PI.Rmd: Visualization for the simulation results, including estimation MISE, prediction RMSE, interval coverage and interval score.
+* parameter-estimation.Rmd: Visualization for the parameter estimation result (Figure S5).
+* real-data.Rmd: Visualization of boxplots of RMSE, barplots of prediction interval coverage and score, histograms of the fitting residuals (noise).
 
 * utils_PDP.py: Introduces functions for the partial dependency plot (PDP).
 * utils_pygam.py: Modifies the GAM class from pyGAM to make it compatible with GAM-GLS.
@@ -66,19 +74,24 @@ Figure 2(e, f): running_time.py
 * Figure S14: dim1.py & dim5.py 
 * Figure S15: running_time_detail.py
 * Figure S16: running_time.py
-* Figure S17, S18: dim1.py & dim5.py 
+* Figure S17: dim1-dense.py 
+* Figure S18: dim5-dense.py 
 * Figure S19: NN-splines-vs-NNGLS.py
 * Figure S20: Oracle-vs-NN-GLS.py
 * Figure S21: dim15.py
-* Figure S22, S23: dim1.py & dim5.py
+* Figure S22, S23: dim1-mis1.py & dim5-mis1.py
 * Figure S24: fixed-surface.py
-* Figure S25, S26: dim1.py & dim5.py 
+* Figure S25, S26: dim1-mis2.py & dim5-mis2.py 
 * Figure S27: realdata.py
 * Figure S28: heatmap.py
 * Figure S29: realdata.py
 * Figure S30: realdata.py
 * Figure S31: realdata_stats.py
 * Figure S32: PDP.py
+
+* Visualization of Figure S7, S8, S9, S10, S11, S14, S17, S18, S21, S22, S23, S25, S26 relies additionally on est-pred-PI.Rmd.
+* Visualization of Figure S5 relies additionally on parameter-estimation.Rmd.
+* Visualization of Figure S27, S28, S29, S30, S31(a, c, e) relies additionally on real-data.Rmd.
 
 ## Data availability
 * The PM2.5 data is collected from the [U.S. Environmental Protection Agency](https://www.epa.gov/outdoor-air-quality-data/download-daily-data)
@@ -89,3 +102,5 @@ Regional Reanalysis (NARR) product](https://psl.noaa.gov/data/gridded/data.narr.
 and saved in the root directory to run 'realdata_preprocess.py'. Otherwise, one can skip the preprocessing and use covariate files directory. 
 
 ## Workflow
+* Most of the files other than the visualization code in the "code" folder can run independently. To reproduce any figure, one can directly run the corresponding file indecated in
+the "Figure' vs code" section. 

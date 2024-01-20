@@ -65,8 +65,7 @@ Y_MISE_np = Y_MISE
 Y_MISE = torch.from_numpy(Y_MISE).float()
 Y_MISE = torch.reshape(Y_MISE, (N, 1))
 
-#name = 'quick_test'
-name = 'SparseB_' + str(max_epoch) + 'epochcut_' + str(lr) + 'lr' + '_fixed-domain'
+name = 'running_time'
 MISE_BRISC = np.empty(0)
 MISE_GAM = np.empty(0)
 MISE_GAMGLS = np.empty(0)

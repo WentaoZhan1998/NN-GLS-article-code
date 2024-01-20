@@ -84,8 +84,8 @@ for sigma in [1, 5]:
                     del C
                     return (corerr)
 
-            n = 2000
-            n_train = 1000
+            n = 5000
+            n_train = 2500
             nn = 20
             batch_size = int(n/20)
             ADDRFGLS = False

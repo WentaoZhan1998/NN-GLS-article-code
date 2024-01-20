@@ -1,501 +1,95 @@
----
-title: "Simulation"
-author: "Wentao Zhan"
-date: "2022/7/18"
-output: html_document
----
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(message=F, warning = FALSE, echo = TRUE)
 ```
 
+## R Markdown
 ```{r, echo = FALSE}
 library(tidyverse)
 library(reshape)
-
 library(RColorBrewer)
-group.colors <- c(brewer.pal(9,"Oranges")[c(4, 8, 3)],
-                  brewer.pal(9,"Greens")[c(5)], 
-                  brewer.pal(9,"Blues")[c(4,8)])
-names(group.colors) = c('NNGLS_oracle', 'NN-GLS', 'NN-nsp+kriging',
-                        'NN-nonspatial',  
-                        'NN-latlon', 'NN-spline')
-
+group.colors <- c(brewer.pal(9,"YlOrRd")[c(3, 4, 5, 8)],
+                       brewer.pal(9,"Reds")[c(3)],
+                       brewer.pal(9,"Purples")[c(6)], 
+                       brewer.pal(9,"Blues")[c(4,6,7)],
+                       brewer.pal(8,"Set2")[c(5)], brewer.pal(9,"Greens")[c(7)])
+names(group.colors) = c('NN-nonspatial', 'NN-latlon', 'NN-splines', 'NN-GLS',
+                             'NN-GLS_oracle',
+                             'Linear-spatial',
+                             'GAM', 'GAM-latlon', 'GAMGLS',
+                             'RF', 'RFGLS')
 ```
 
-```{r}
-library(ggplot2)
-data = read.csv('Estimation.csv')[,-1]
-```
 
-```{r}
-ggplot(data[data$label == 'truth',])+
-  geom_point(aes(x, y, color = z), size = 4) +
-  #facet_wrap(~label, nrow = 1) +
-  scale_color_gradient(low = "blue", high = "orange") + 
-  theme(legend.text = element_text(size=15), legend.title = element_text(size=20),
-        axis.text=element_text(size=12), axis.title=element_text(size=15),
-        strip.text.x = element_text(size = 18))
-ggsave('Estimation_truth.png', width = 8, height = 5)
-```
-
-```{r}
-ggplot(data)+
-  geom_point(aes(x, y, color = z), size = 4) +
-  facet_wrap(~label, nrow = 1) +
-  scale_color_gradient(low = "blue", high = "orange") + 
-  theme(legend.text = element_text(size=15), legend.title = element_text(size=20),
-        axis.text=element_text(size=12), axis.title=element_text(size=15),
-        strip.text.x = element_text(size = 18))
-ggsave('Estimation.png', width = 24, height = 6)
-```
-
-```{r}
-ggplot(data) + geom_tile(aes(x, y, fill = z)) +
-  facet_wrap(~label, nrow = 1) +
-  coord_fixed(ratio = 1) +
-  scale_fill_gradient(
-    name = "Rainfall",
-    low = "blue", high = "orange"
-  ) +
-  theme_bw()
-```
-
-```{r}
-library(ggplot2)
-data = read.csv('Prediction.csv')[,-1]
-```
-
-```{r}
-ggplot(data[data$train == 'False', ])+
-  geom_point(aes(x, y, color = z), size = 2) +
-  facet_wrap(~label, nrow = 1) +
-  scale_color_gradient(low = "blue", high = "orange") +
-  theme_bw()
-ggsave('Prediction.png', width = 20, height = 3)
-```
-
-```{r}
-myreshape = function(data){
-  MISE = as.vector(as.matrix(data))
-  label = rep(colnames(data), each = nrow(data))
-  return(data.frame(x = rep(1, nrow(data)*ncol(data)), RMSE_log = log(MISE), label = label))
-}
-
-
-plots <- function(file_name, breaks = 10, ratio = 50){
-  data = read.csv(file_name)[,-1]
-  if ('Means' %in% colnames(data)){
-    #p =  hist(data$Means, breaks = breaks, main = 'Hist of Means')
-    data = data[,  names(data)!='Means']
-  
-  }
-  id = (apply(data, 1, max)/apply(data, 1, min) < ratio)
-  data$DK_coord = data$DeepKriging
-  data$DK_spline = data$DeepKriging_spline
-  data$NNGLS_krig = data$NNGLS_kriging
-  data$NN_krig = data$NN_kriging
-  data = data[id, c('NN', 'NN_krig', 'DK_coord', 'DK_spline','NNGLS_krig')]
-  #data = data[id, c('NN', 'DK_spline','NNGLS_krig')]
-  colnames(data) = c('NN-nonspatial', 'NN-nsp+kriging', 'NN-latlon', 'NN-spline', 'NN-GLS')
-  data_plt = myreshape(data)
-  data_plt$Method = factor(data_plt$label, levels = c('NN-nonspatial', 'NN-nsp+kriging', 'NN-latlon', 'NN-spline', 'NN-GLS'))
-  #data_plt$Method = factor(data_plt$label, levels = c('NN', 'DK_spline', 'NNGLS_krig'))
-
-  p1 = ggplot(data_plt, aes(x = label, y=RMSE_log, fill=label)) + 
-      geom_violin()
-
-  p2 = ggplot(data_plt, aes(x = Method, y=RMSE_log, fill=Method)) + 
-      geom_boxplot() + scale_fill_discrete(name = "Methods") + xlab('Methods') + #ylim(c(-1,1))+
-    scale_fill_manual(values=group.colors[colnames(data)]) +
-  theme(legend.text = element_text(size=20), legend.title = element_text(size=20),
-        axis.text=element_text(size=15), axis.title=element_text(size=18))
-  
-  #p3 = hist(log(data$MISE_Test/data$MISE), breaks = breaks, main = 'Hist of log(GLS_test/OLS)')
-  
-  #print(p1)
-  print(p2)
-  
-  res = list()
-  res$median = apply(data, 2, median)
-  res$id = id
-  
-  return(res)
-}  
-
-```
-
-```{r}
-data = read.csv(filename1)[,-1]
-head(data)
-colnames(data) = c('NN_kriging', 'NNGLS_kriging', 'NNGLS_kriging', 'NN', 'DeepKriging', 'DeepKriging_spline')
-
-write.csv(data, filename1)
-```
-
-```{r}
-filename1 = './data/RMSE_0704.csv'
-data = read.csv(filename1)[,-1]
-colnames(data) = c('NN_kriging', 'NNGLS_kriging', 'NNGLS_update_kriging', 'NN', 'DK', 'DK_spline')
-write.csv(data, filename1)
-```
-
-```{r}
-data = read.csv('./data/RMSE_rand.csv')[,-1]
-subdata = data[,c('NN', 'NNGLS_update_20', 'NN_kriging', 'DK_spline')]
-colnames(subdata) = c('NN', 'NNGLS', 'NN_kriging', 'DeepKriging')
-write.csv(subdata, './data/RMSE_rand_sub.csv')
-```
-
-```{r}
-filename1 = './data/RMSE_rand_sub.csv'
-
-res = plots(filename1, breaks = 40)
-res$median
-```
-```{r}
-ggsave('Real_data_prediction.png', width = 8, height = 6)
-```
-
-```{r}
-filename1 = './data/RMSE_rand.csv'
-
-res = plots(filename1, breaks = 40)
-res$median
-```
-```{r}
-ggsave('Real_0605.png', width = 10, height = 6)
-```
-
-```{r}
-filename1 = './data/RMSE_block10.csv'
-
-res = plots(filename1, breaks = 40)
-res$median
-```
-```{r}
-ggsave('Real_0605_block10.png', width = 10, height = 6)
-```
-
-```{r}
-filename1 = './data/RMSE_block6.csv'
-
-res = plots(filename1, breaks = 40)
-res$median
-```
-```{r}
-ggsave('Real_0605_block6.png', width = 10, height = 6)
-```
-
-Data_by_day
-
-```{r}
-filename1 = './data/data_by_day/RMSE_0704.csv'
-
-res = plots(filename1, breaks = 40)
-res$median
-```
-```{r}
-ggsave('Real_0704.png', width = 10, height = 6)
-```
-
-```{r}
-filename1 = './data/data_by_day/RMSE_0628.csv'
-
-res = plots(filename1, breaks = 40)
-res$median
-
-ggsave('Real_0628.png', width = 10, height = 6)
-```
-```{r}
-filename1 = './data/data_by_day/RMSE_0618.csv'
-
-res = plots(filename1, breaks = 40)
-res$median
-
-ggsave('Real_0618.png', width = 10, height = 6)
-```
-
-```{r}
-filename1 = './data/data_by_day/RMSE_0618_block10.csv'
-
-res = plots(filename1, breaks = 40)
-res$median
-
-ggsave('Real_0618_block10.png', width = 10, height = 6)
-```
-
-```{r}
-filename1 = './data/data_by_day/RMSE_0618_block6.csv'
-
-res = plots(filename1, breaks = 40)
-res$median
-
-ggsave('Real_0618_block6.png', width = 10, height = 6)
-```
-
-#20231010: build the first round result
-#20231011: order the coordinates
-#'old': use the old scripts
-#20231018: updated the scripts
-
+## Boxplots for the RMSE of prediction on realdata.
 ```{r}
 type = 'RMSE'
-day_vec = c('0605', '0618', '0628', '0704')
-date = '1011'
-block_vec = c(0, 6, 10)
-tau_vec = as.character(c(1, 10, 25))
-cols = c('tau', 'Method', 'MISE')
-method = '0'
+day_vec = c('0605', '0618', '0704')
+block_vec = c(0, 3, 6)
 
 path = paste0('/Users/zhanwentao/Documents/Abhi/NN/Simulation/realdata/data/', date, '/')
 
-namelist = list(c('BRISC', 'GAM', 'GAM_krig', 'NNGLS_krig'),
-                c('RF', 'RF_krig', 'NNGLS_krig', 'NNGLS_krig'),
-                c('NN_latlong', 'NNDK', 'NN', 'NN_krig', 'NNGLS_krig'))
-classes = c('GAM', 'RF', 'NN')
-for(l in 1:3){
-  names = namelist[[l]]
-  class = classes[l]
-  names_alt = names
+names = c('GAM_latlong', 'RFGLS_krig', 'NN_latlong', 'NNDK', 'NNGLS3_krig')
+names_alt = c('GAM-latlon', 'RFGLS', 'NN-latlon', 'NN-splines', 'NN-GLS')
 
-  colname = c('variable', 'value', 'day', 'block')
-  data = data.frame(matrix(ncol = length(colname)))
-  colnames(data) = colname
-  for(i in 1:length(day_vec)){
-      for(j in 1:length(block_vec)){
-        filename = paste0('RMSE', day_vec[i], 'block', block_vec[j], '.csv')
-        if(!(filename %in% list.files(path))){next}
-        df_temp = read.csv(paste0(path, filename))[, names]
-        colnames(df_temp) = names_alt
-        df_temp = melt(df_temp)
-        df_temp$day = day_vec[i]
-        df_temp$block = block_vec[j]
-          
-        data = rbind(data, df_temp)
-      }
-  }
-  data = data[-1,]
-  data = data[complete.cases(data),]
-  data = data %>% group_by(day, block, variable)
-  colnames(data)[1:2] = c('Method', 'MISE') 
-  data = data %>% filter(block == 0)
-  ggplot(data, aes(x = Method, y = log(MISE))) + 
-    geom_boxplot(aes(fill = Method)) + 
-    #scale_fill_manual(values=group.colors[names_alt]) +
-    xlab("Methods") +
-    facet_grid(day ~ ., scales = 'free', labeller = label_both) +
-    theme(legend.text = element_text(size=15), legend.title = element_text(size=20),
-          axis.text=element_text(size=12), axis.title=element_text(size=15),
-          strip.text.x = element_text(size = 10), strip.text.y = element_text(size = 10))
-  
-  figname = paste0(type, '_mtd', method, '_vs_', class, '_block', 0, '.png')
-  ggsave(figname, width = 6, height = 12)
-}
-```
-
-```{r}
-#### In case no intercept was found
 for(i in 1:length(day_vec)){
     for(j in 1:length(block_vec)){
-      filename = paste0('RMSE', day_vec[i], 'block', block_vec[j], '.csv')
-      filename_BRISC = paste0('RMSE', day_vec[i], '_BRISCblock', block_vec[j], '.csv')
+      filename = paste0('RMSE', day_vec[i], '', 'block', block_vec[j], '.csv')
       if(!(filename %in% list.files(path))){
         print('Not found')
         next}
-      df_temp = read.csv(paste0(path, filename))[,-1]
-      print(nrow(df_temp))
-      df_temp$BRISC = read.csv(paste0(path, filename_BRISC))$BRISC[1:nrow(df_temp)]
-        
-      #write.csv(df_temp, paste0(path, filename))
-    }
-}
-```
-```{r}
-type = 'PI_score'
-for(i in 1:length(day_vec)){
-    for(j in 1:length(block_vec)){
-      filename = paste0(day_vec[i], 'block', block_vec[j], '_', type, '.csv')
-      filename_BRISC = paste0(day_vec[i], '_BRISCblock', block_vec[j], '_', type, '.csv')
-      if(!(filename %in% list.files(path))){
-        print('Not found')
-        next}
-      df_temp = read.csv(paste0(path, filename))[,-1]
-      print(nrow(df_temp))
-      df_temp$BRISC = read.csv(paste0(path, filename_BRISC))$BRISC[1:nrow(df_temp)]
-      df_temp$GAM_latlong = read.csv(paste0(path, filename_BRISC))$GAM_latlong[1:nrow(df_temp)]
-        
-      #write.csv(df_temp, paste0(path, filename))
+      df_temp = read.csv(paste0(path, filename))[, names]
+      colnames(df_temp) = names_alt
+      df_temp = melt(df_temp)
+      colnames(df_temp)[1:2] = c('Method', 'RMSE') 
+      
+      ggplot(df_temp, aes(x = Method, y = RMSE)) + geom_boxplot(aes(fill = Method)) +
+        scale_fill_manual(values=group.colors[names_alt]) +
+        xlab("Methods") + ylab("RMSE") + scale_y_log10() +
+        theme(legend.text = element_text(size=20), legend.title = element_text(size=22),
+              axis.text=element_text(size=18), axis.title=element_text(size=20),
+              strip.text.x = element_text(size = 18), strip.text.y = element_text(size = 18))
     }
 }
 ```
 
-```{r}
-type = 'RMSE'
-day_vec = c('0605', '0618', '0628', '0704')
-date = '1227'
-block_vec = c(0, 6, 10)
-tau_vec = as.character(c(1, 10, 25))
-cols = c('tau', 'Method', 'MISE')
-method = '0'
-
-path = paste0('/Users/zhanwentao/Documents/Abhi/NN/Simulation/realdata/data/', date, '/')
-
-classes = c('all')
-for(l in 1){
-  #names = namelist[[l]]
-  class = classes[l]
-  names = c('GAM_latlong', 'RFGLS_krig', 'NN_latlong', 'NNDK', 'NNGLS3_krig')
-  names_alt = c('GAM-latlon', 'RFGLS', 'NN-latlon', 'NN-splines', 'NN-GLS')
-
-  colname = c('variable', 'value', 'day', 'block')
-  data = data.frame(matrix(ncol = length(colname)))
-  colnames(data) = colname
-  for(i in 1:length(day_vec)){
-      for(j in 1:length(block_vec)){
-        filename = paste0('RMSE', day_vec[i], '', 'block', block_vec[j], '.csv')
-        #filename_GAM = paste0('RMSE', day_vec[i], '_GAMblock', block_vec[j], '.csv')
-        if(!(filename %in% list.files(path))){
-          print('Not found')
-          next}
-        df_temp = read.csv(paste0(path, filename))[, names]
-        colnames(df_temp) = names_alt
-        df_temp = melt(df_temp)
-        df_temp$day = day_vec[i]
-        df_temp$block = block_vec[j]
-          
-        data = rbind(data, df_temp)
-      }
-  }
-  data = data[-1,]
-  data = data[complete.cases(data),]
-  data = data %>% group_by(day, block, variable)
-  colnames(data)[1:2] = c('Method', 'MISE') 
-}
-data = data %>% filter(MISE<=2)
-
-for(block0 in c(0, 6, 10)){
-  data$Method = factor(data$Method, levels = names_alt)
-  for(i in 1:length(day_vec)){
-    day0 = day_vec[i]
-    data_plt = data %>% filter(block == block0&day==day0)
-    ggplot(data_plt, aes(x = Method, y = MISE)) + 
-      geom_boxplot(aes(fill = Method)) + 
-      scale_fill_manual(values=group.colors[names_alt]) +
-      xlab("Methods") + ylab("RMSE") + scale_y_log10() +
-  theme(legend.text = element_text(size=20), legend.title = element_text(size=22),
-        axis.text=element_text(size=18), axis.title=element_text(size=20),
-        strip.text.x = element_text(size = 18), strip.text.y = element_text(size = 18))
-    
-    figname = paste0(type, '_', class, '_block', block0, '_', day0, '.png')
-    ggsave(paste0(path, figname), width = 8, height = 6)
-  }
-}
-```
-
+## Coverage (score) of the prediction intervals on realdata.
 ```{r}
 day_vec = c('0605', '0618', '0704')
-date = '1227'
-block_vec = c(0, 6, 10)
-tau_vec = as.character(c(1, 10, 25))
-cols = c('tau', 'Method', 'MISE')
-method = '0'
+block_vec = c(0, 3, 6)
 
-path = paste0('/Users/zhanwentao/Documents/Abhi/NN/Simulation/realdata/data/', date, '/')
+path = paste0(".//simulation//realdata//")
 
-classes = c('all')
-for(l in 1){
-  #names = namelist[[l]]
-  class = classes[l]
-  names = c('RFGLS','NNGLS3')
-  names_alt =  c('RFGLS', 'NN-GLS')
+names = c('RFGLS','NNGLS3')
+names_alt =  c('RFGLS', 'NN-GLS')
 
-  colname = c('variable', 'value', 'day', 'block')
-  data = data.frame(matrix(ncol = length(colname)))
-  colnames(data) = colname
-  for(i in 1:length(day_vec)){
-      for(j in 1:length(block_vec)){
-        filename = paste0(day_vec[i], 'block', block_vec[j], '_PI_cov.csv')
-        if(!(filename %in% list.files(path))){
-          print('Not found')
-          next}
-        df_temp = read.csv(paste0(path, filename))[, names]
-        colnames(df_temp) = names_alt
-        df_temp = melt(df_temp)
-        df_temp$day = day_vec[i]
-        df_temp$block = block_vec[j]
-          
-        data = rbind(data, df_temp)
-      }
-  }
-  data = data[-1,]
-  data = data[complete.cases(data),]
-  data = data %>% group_by(day, block, variable)
-  colnames(data)[1:2] = c('Method', 'MISE') 
+colname = c('variable', 'value', 'day', 'block')
+data = data.frame(matrix(ncol = length(colname)))
+colnames(data) = colname
+for(i in 1:length(day_vec)){
+    for(j in 1:length(block_vec)){
+      filename = paste0(day_vec[i], 'block', block_vec[j], '_PI_cov.csv') # Switch between 'PI_cov' and 'PI_score'
+      if(!(filename %in% list.files(path))){
+        print('Not found')
+        next}
+      df_temp = read.csv(paste0(path, filename))[, names]
+      colnames(df_temp) = names_alt
+      df_temp = melt(df_temp)
+      df_temp$day = day_vec[i]
+      df_temp$block = block_vec[j]
+        
+      data = rbind(data, df_temp)
+    }
 }
-data = data %>% filter(MISE<=2)
+data = data[-1,]
+data = data[complete.cases(data),]
+data = data %>% group_by(day, block, variable)
+colnames(data)[1:2] = c('Method', 'value') 
 
 data$Method = factor(data$Method, levels = names_alt)
 data_plt = data %>% filter(Method %in% names_alt&day%in% day_vec)
-data_plt  = data_plt %>% group_by(Method, day, block) %>% summarise(MISE = mean(MISE))
-ggplot(data_plt, aes(x = day, y = MISE)) + 
-  geom_bar(aes(group = Method, fill = Method), position = "dodge", stat="identity") + 
-  scale_fill_manual(values=group.colors[names_alt]) + geom_hline(yintercept=0.95) +
-  facet_grid(block ~ ., scales = 'free', labeller = label_both) +
-  xlab("Days") + ylab("Prediction coverage")+
-  theme(legend.text = element_text(size=20), legend.title = element_text(size=22),
-        axis.text=element_text(size=18), axis.title=element_text(size=20),
-        strip.text.x = element_text(size = 18), strip.text.y = element_text(size = 18))
-
-figname = paste0('PI_cov.png')
-ggsave(paste0(path, figname), width = 8, height = 6)
-```
-
-```{r}
-day_vec = c('0605', '0618', '0704')
-date = '1227'
-block_vec = c(0, 6, 10)
-tau_vec = as.character(c(1, 10, 25))
-cols = c('tau', 'Method', 'MISE')
-method = '0'
-
-path = paste0('/Users/zhanwentao/Documents/Abhi/NN/Simulation/realdata/data/', date, '/')
-
-classes = c('all')
-for(l in 1){
-  #names = namelist[[l]]
-  class = classes[l]
-  names = c('RFGLS','NNGLS3')
-  names_alt =  c('RFGLS', 'NN-GLS')
-
-  colname = c('variable', 'value', 'day', 'block')
-  data = data.frame(matrix(ncol = length(colname)))
-  colnames(data) = colname
-  for(i in 1:length(day_vec)){
-      for(j in 1:length(block_vec)){
-        filename = paste0(day_vec[i], 'block', block_vec[j], '_PI_score.csv')
-        if(!(filename %in% list.files(path))){
-          print('Not found')
-          next}
-        df_temp = read.csv(paste0(path, filename))[, names]
-        colnames(df_temp) = names_alt
-        df_temp = melt(df_temp)
-        df_temp$day = day_vec[i]
-        df_temp$block = block_vec[j]
-          
-        data = rbind(data, df_temp)
-      }
-  }
-  data = data[-1,]
-  data = data[complete.cases(data),]
-  data = data %>% group_by(day, block, variable)
-  colnames(data)[1:2] = c('Method', 'MISE') 
-}
-
-data$Method = factor(data$Method, levels = names_alt)
-data_plt = data %>% filter(Method %in% names_alt&day%in% day_vec)
-data_plt  = data_plt %>% group_by(Method, day, block) %>% summarise(MISE = mean(MISE))
-ggplot(data_plt, aes(x = day, y = MISE)) + 
+data_plt  = data_plt %>% group_by(Method, day, block) %>% summarise(value = mean(value))
+ggplot(data_plt, aes(x = day, y = value)) + 
   geom_bar(aes(group = Method, fill = Method), position = "dodge", stat="identity") + 
   scale_fill_manual(values=group.colors[names_alt]) + 
   facet_grid(block ~ ., scales = 'free', labeller = label_both) +
@@ -504,102 +98,12 @@ ggplot(data_plt, aes(x = day, y = MISE)) +
         axis.text=element_text(size=18), axis.title=element_text(size=20),
         strip.text.x = element_text(size = 18), strip.text.y = element_text(size = 18))
 
-figname = paste0('PI_score.png')
-ggsave(paste0(path, figname), width = 8, height = 6)
 ```
 
-
-
-
-```{r}
-type = 'RMSE'
-day_vec = c('0605', '0618', '0628', '0704')
-date = 'old'
-block_vec = c(0, 6, 10)
-cols = c('tau', 'Method', 'MISE')
-method = '0'
-
-path = paste0('/Users/zhanwentao/Documents/Abhi/NN/Simulation/realdata/data/', date, '/')
-
-colname = c('variable', 'value', 'day', 'block')
-data = data.frame(matrix(ncol = length(colname)))
-colnames(data) = colname
-for(i in 1){
-    for(j in 1){
-      filename = paste0('RMSE_', day_vec[i], '.csv')
-      if(!(filename %in% list.files(path))){next}
-      df_temp = read.csv(paste0(path, filename))[, -1]
-      df_temp = melt(df_temp)
-      df_temp$day = day_vec[i]
-      df_temp$block = block_vec[j]
-        
-      data = rbind(data, df_temp)
-    }
-}
-data = data[-1,]
-data = data[complete.cases(data),]
-data = data %>% group_by(day, block, variable)
-colnames(data)[1:2] = c('Method', 'MISE') 
-data = data %>% filter(block == 0)
-ggplot(data %>% filter(day == '0605'), aes(x = Method, y = log(MISE))) + 
-  geom_boxplot(aes(fill = Method)) + 
-  #scale_fill_manual(values=group.colors[names_alt]) +
-  facet_grid(day ~ ., scales = 'free', labeller = label_both) +
-  xlab("Methods") +
-  theme(legend.text = element_text(size=15), legend.title = element_text(size=20),
-        axis.text=element_text(size=12), axis.title=element_text(size=15),
-        strip.text.x = element_text(size = 10), strip.text.y = element_text(size = 10))
-
-figname = paste0(type, '_', date, '_block0.png')
-ggsave(figname, width = 6, height = 4)
-```
-
-```{r}
-type = 'RMSE'
-day_vec = c('0605', '0618', '0628', '0704')
-date = 'old'
-block_vec = c(0, 6, 10)
-cols = c('tau', 'Method', 'MISE')
-method = '0'
-
-path = paste0('/Users/zhanwentao/Documents/Abhi/NN/Simulation/realdata/data/', date, '/')
-
-colname = c('variable', 'value', 'day', 'block')
-data = data.frame(matrix(ncol = length(colname)))
-colnames(data) = colname
-for(i in 1){
-    for(j in 1){
-      filename = paste0('RMSE_', day_vec[i], '.csv')
-      if(!(filename %in% list.files(path))){next}
-      df_temp = read.csv(paste0(path, filename))[, -1]
-      df_temp = melt(df_temp)
-      df_temp$day = day_vec[i]
-      df_temp$block = block_vec[j]
-        
-      data = rbind(data, df_temp)
-    }
-}
-data = data[-1,]
-data = data[complete.cases(data),]
-data = data %>% group_by(day, block, variable)
-colnames(data)[1:2] = c('Method', 'MISE') 
-data = data %>% filter(block == 0)
-ggplot(data %>% filter(day == '0605'), aes(x = Method, y = log(MISE))) + 
-  geom_boxplot(aes(fill = Method)) + 
-  #scale_fill_manual(values=group.colors[names_alt]) +
-  facet_grid(day ~ ., scales = 'free', labeller = label_both) +
-  xlab("Methods") +
-  theme(legend.text = element_text(size=15), legend.title = element_text(size=20),
-        axis.text=element_text(size=12), axis.title=element_text(size=15),
-        strip.text.x = element_text(size = 10), strip.text.y = element_text(size = 10))
-
-figname = paste0(type, '_', date, '_block0.png')
-ggsave(figname, width = 6, height = 4)
-```
-
+## Histogram of the fitting residuals (noise).
 ```{r}
 day_vec = c('0605', '0618', '0704')
-path = '/Users/zhanwentao/Documents/Abhi/NN/Simulation/realdata/'
+path = paste0(".//simulation//realdata//")
 for(date in day_vec){
   err = read.csv(paste0("Hist", date, ".csv"))[,-1]
   mydata <- data.frame(err = err)
@@ -619,27 +123,6 @@ for(date in day_vec){
 }
 ```
 
-```{r}
-err = c()
-label = c()
-for(date in day_vec){
-  err_temp =  read.csv(paste0("Hist", date, ".csv"))[,-1]
-  err = c(err, err_temp)
-  label = c(label, rep(date, length(err_temp)))
-}
-mydata <- data.frame(err = err, date = label)
-dnorm_temp = function(x){
-  dnorm(x, mean = mean(err), sd = sqrt(var(err)))
-}
-ggplot(mydata, aes(err)) +
-    geom_histogram(aes(y = ..density..), binwidth = 0.5,
-        fill = "cornsilk", color = "black") + xlim(c(-10, 10)) +
-  facet_grid(date~., scales = 'free') + 
-  xlab('Noise Distribution') + ylab('Density') +
-    stat_function(fun = dnorm_temp, mean = mean(err), sd = sqrt(var(err)), color = "maroon", size = 1.5) + 
-  theme(legend.text = element_text(size=15), legend.title = element_text(size=20),
-      axis.text=element_text(size=12), axis.title=element_text(size=15),
-      strip.text.x = element_text(size = 10), strip.text.y = element_text(size = 10))
-figname = paste0('Hist.png')
-ggsave(figname, width = 6, height = 4)
-```
+
+
+

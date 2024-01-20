@@ -77,7 +77,7 @@ Y_MISE_np = Y_MISE
 Y_MISE = torch.from_numpy(Y_MISE).float()
 Y_MISE = torch.reshape(Y_MISE, (N, 1))
 
-name = 'par'
+name = '_par'
 MISE_NN = np.empty(0)
 MISE_NNGLS = np.empty(0)
 MISE_NNGLS2 = np.empty(0)
@@ -90,14 +90,14 @@ RMSE_NNGLS3 = np.empty(0)
 
 df_theta = pd.DataFrame(columns=['sigma', 'phi', 'tau', 'method', 'ind', 'sigma0', 'phi0', 'tau0'])
 
-theta_mat = np.array([[1,1,1,1,1,1,5,5,5,5,5,5],
-                      [1,1,3,3,6,6,1,1,3,3,6,6],
-                      [0.01,0.1,0.01,0.1,0.01,0.1,0.01,0.1,0.01,0.1,0.01,0.1]])
+theta_mat = np.array([[1,1,1,5,5,5],
+                      [1,3,6,1,3,6],
+                      [0.1,0.1,0.1,0.1,0.1,0.1]])
 
 theta_mat[1,:] = theta_mat[1,:]/np.sqrt(2)
 
 for rand in range(100):
-    for t in range(12):
+    for t in range(6):
         theta0 = theta_mat[:,t]
         theta = theta0.copy()
         torch.manual_seed(2023+rand)
@@ -180,14 +180,14 @@ for rand in range(100):
                                         coord[~data.test_mask,], coord[data.test_mask,], theta_hat2)
         RMSE_NNGLS2 = np.append(RMSE_NNGLS2, RMSE(Pred_NNGLS2[0], Y_test) / RMSE(Y_test, np.mean(Y_test)))
         df_theta = df_theta.append({'sigma': theta_hat2[0], 'phi': theta_hat2[1], 'tau': theta_hat2[2],
-                                    'method': 'NNGLS_update1', 'ind': rand,
-                                    'sigma0': theta[0], 'phi0': theta[1], 'tau0': theta[2]}, ignore_index=True)
+                                    'Method': 'NNGLS_update1', 'ind': rand,
+                                    'sigma_sq0': theta[0], 'phi0': theta[1], 'tau0': theta[2]}, ignore_index=True)
         ###################################################################################
 
     df_MISE = pd.DataFrame({'NN': MISE_NN,
                             'NNGLS': MISE_NNGLS, 'NNGLS_update1': MISE_NNGLS2})
     df_RMSE = pd.DataFrame({'NN': RMSE_NN, 'NN_krig': RMSE_NN_krig,
                             'NNGLS': RMSE_NNGLS, 'NNGLS_update1': RMSE_NNGLS2})
-    df_theta.to_csv(".//simulation//par//dim" + str(p) + name + '_theta.csv')
-    df_MISE.to_csv(".//simulation//par//dim" + str(p) + name + '_MISE.csv')
-    df_RMSE.to_csv(".//simulation//par//dim" + str(p) + name + '_RMSE.csv')
+    df_theta.to_csv(".//simulation//par//" + fun + name + '_theta.csv')
+    df_MISE.to_csv(".//simulation//par//" + fun + name + '_MISE.csv')
+    df_RMSE.to_csv(".//simulation//par//" + fun + name + '_RMSE.csv')
