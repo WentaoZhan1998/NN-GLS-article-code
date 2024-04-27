@@ -1,8 +1,10 @@
 # NN-GLS-article-code
-Available code for the NN-GLS paper (<https://arxiv.org/pdf/2304.09157.pdf>)
-=======
-This is the viable code for the NN-GLS paper. To run the code, \
+## Available code for the NN-GLS paper (<https://arxiv.org/pdf/2304.09157.pdf>)
+
+This is the viable code for the NN-GLS paper. To run the code, 
 please [download](https://github.com/WentaoZhan1998/NN-GLS-article-code/archive/refs/heads/main.zip) the code from https://github.com/WentaoZhan1998/NN-GLS-article-code to the working directory and unzip.
+
+Note: we have published a beta version Python package [**geospaNN**](https://github.com/WentaoZhan1998/geospaNN) as an formal implementation of NN-GLS with the [PyG](https://pytorch-geometric.readthedocs.io/en/latest/) library. For more details, see <https://github.com/WentaoZhan1998/geospaNN>.
 
 ## Folder description:
 * Folder */code/est-pred-PI* contains code producing most of the simulation result,
@@ -107,11 +109,11 @@ datasets for each state are collected and binded together to obtain 'pm25_2022.c
 Regional Reanalysis (NARR) product (<https://psl.noaa.gov/data/gridded/data.narr.html>). The '.nc' (netCDF) files should be downloaded from the website 
 and saved in the root directory to run 'realdata_preprocess.py'. Otherwise, one may skip the preprocessing and use covariate files directly. 
 * Note that for 06/05/2019, we use the flies provided by the DeepKriging project (<https://github.com/aleksada/DeepKriging>), which come from the same resource (EPA and NARR).
-* File structure: The direct input to our model are the arrays including the $nxp$ covariates matrix $\mathbf{X}$, the $nx1$ response vector $\mathbf{Y}$, and the $nx2$ coordinates for spatial locations $\bm(s)$. However, to better deliver the information, it's recommended to prepare the raw data in a dataframe (in csv or xlsx format) which contains columns for covariates, spatial coordinates, and response. Each row of the data frame stands for an observation. In python, simple function like ".values" can be used to obtain array from data frame. 
+* File structure: The direct input to our model are the arrays including the $n\times p$ covariates matrix $\mathbf{X}$, the $n\times 1$ response vector $\mathbf{Y}$, and the $n\times 2$ coordinates for spatial locations $\mathbf{S}$. However, to better deliver the information, it's recommended to prepare the raw data in a data frame (in *.csv* or *.xlsx* format) which contains columns for covariates, spatial coordinates, and response. Each row of the data frame stands for an observation. In python, simple function like ".values" can be used to obtain array from data frame. 
 
 ## Workflow
 * Folder structure: Keep the code and folders as the same structure in this repository to make sure data can be read properly.
-* Preprocessing: All data necessary for training an NN-GLS model are the $nxp$ covariates matrix $\mathbf{X}$, the $nx1$ response vector $\mathbf{Y}$, and the $nx2$ coordinates for spatial locations $\bm(s)$. We recommend user scale the spatial coordinates to a uniform range (for example $[0, 10]^2$) for a universal comparison of spatial parameters. Most of the simulation example generate properly scaled samples and no preprocessing is needed. For the real data, since the PM2.5 data and the meteorological data have unmatched spatial locations, nearest neighbor average of PM2.5 are computed at the meteorological data's locations to create matched dataset (see */code/realdata/realdata.py* for the code). In our new python package "geospaNN"<https://github.com/WentaoZhan1998/geospaNN>  we provide better way to implicitly put $\mathbf{X}$, $\mathbf{Y}$, $\bm(s)$ into the model.
+* Preprocessing: All data necessary for training an NN-GLS model are the $n\times p$ covariates matrix $\mathbf{X}$, the $n\times 1$ response vector $\mathbf{Y}$, and the $n\times 2$ coordinates for spatial locations $\mathbf{S}$. We recommend user scale the spatial coordinates to a uniform range (for example $[0, 10]^2$) for a universal comparison of spatial parameters. Most of the simulation example generate properly scaled samples and no preprocessing is needed. For the real data, since the PM2.5 data and the meteorological data have unmatched spatial locations, nearest neighbor average of PM2.5 are computed at the meteorological data's locations to create matched dataset (see */code/realdata/realdata.py* for the code). In our new python package [**geospaNN**](https://github.com/WentaoZhan1998/geospaNN), we provide better way to implicitly put $\mathbf{X}$, $\mathbf{Y}$, $\mathbf{S}$ into the model.
 * Running: Most of the files other than the visualization code in the "code" folder can run independently. To reproduce any figure, one can directly run the corresponding file indicated in
 the "Figure' vs code" section. 
 
