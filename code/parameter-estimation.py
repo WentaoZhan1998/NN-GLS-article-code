@@ -41,10 +41,10 @@ def int_coverage(x, u, l):
     score = np.logical_and(x>=l, x<=u)
     return (np.mean(score))
 
-fun = 'sin'
+fun = 'friedman'
 
 if fun == 'sin':
-    p = 1; funXY = utils.fx; Netp = utils.Netp_sig
+    p = 1; funXY = utils.f1; Netp = utils.Netp_sig
     update_init = 50; update_step = 50
 elif fun == 'friedman':
     p = 5; funXY = utils.f5; Netp = utils.Netp_sig
@@ -153,7 +153,7 @@ for rand in range(100):
         patience_half = 10
         patience = 20
 
-        theta_hat, _, model_NNGLS = utils.train_decor_new(model_NNGLS, optimizer, data, 1000, theta_hat0, sparse = Sparse,
+        theta_hat, _, _, model_NNGLS = utils.train_decor_new(model_NNGLS, optimizer, data, 1000, theta_hat0, sparse = Sparse,
                                                 Update=False, patience=patience, patience_half=patience_half)
         Est_MISE_NNGLS = model_NNGLS(X_MISE, edge_index).detach().numpy().reshape(-1)
         MISE_NNGLS = np.append(MISE_NNGLS, RMSE(Est_MISE_NNGLS, Y_MISE_np.reshape(-1)))
@@ -170,7 +170,7 @@ for rand in range(100):
         patience_half = 10
         patience = 20
 
-        theta_hat2, _, model_NNGLS2 = utils.train_decor_new(model_NNGLS2, optimizer, data, 1000, theta_hat0, sparse=Sparse,
+        theta_hat2, _, _, model_NNGLS2 = utils.train_decor_new(model_NNGLS2, optimizer, data, 1000, theta_hat0, sparse=Sparse,
                                                       Update=True, patience=patience, patience_half=patience_half,
                                                       Update_bound=100, Update_method='optimization',
                                                       Update_init=20, Update_step=20)

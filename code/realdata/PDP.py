@@ -150,7 +150,7 @@ optimizer = torch.optim.Adam(model_NNGLS.parameters(), lr=0.1)
 patience_half = 10
 patience = 20
 
-theta_hat, _, model_NNGLS = utils.train_decor_new(model_NNGLS, optimizer, data, 1000, theta_hat0, sparse=Sparse,
+theta_hat, _, _, model_NNGLS = utils.train_decor_new(model_NNGLS, optimizer, data, 1000, theta_hat0, sparse=Sparse,
                                               Update=True, patience=patience, patience_half=patience_half,
                                               Update_method='optimization')
 

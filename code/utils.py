@@ -29,14 +29,15 @@ def solve_I_B_sparseB(I_B, y):
     return x
 
 def rmvn(m, mu, cov, I_B, F_diag, sparse, chol = True):
-    p = len(mu)
-    if p <= 2000 and chol:
+    n = len(mu)
+    rnorm = np.random.randn(m, n)
+    if n <= 2000 and chol:
         D = np.linalg.cholesky(cov)
-        res = np.matmul(np.random.randn(m, p), np.matrix.transpose(D)) + mu
+        res = np.matmul(rnorm, np.matrix.transpose(D)) + mu
     elif sparse:
-        res = solve_I_B_sparseB(I_B, np.sqrt(F_diag) * np.random.randn(m, p).reshape(-1))
+        res = solve_I_B_sparseB(I_B, np.sqrt(F_diag) * rnorm.reshape(-1))
     else:
-        res = scipy.linalg.solve_triangular(I_B, np.sqrt(F_diag) * np.random.randn(m, p).reshape(-1),lower=True)
+        res = scipy.linalg.solve_triangular(I_B, np.sqrt(F_diag) * rnorm.reshape(-1),lower=True)
     return  res.reshape(-1) # * np.ones((m, p))
 
 def make_cov(theta, dist):
@@ -253,7 +254,7 @@ def bf_from_theta(theta, coord, nn, method = '0', nu = 1.5, sparse = True, versi
     sigma_sq, phi, tau = theta
     tau_sq = tau * sigma_sq
     cov = 0
-    if n<= 2000:
+    if n<= 2000 or sparse == False:
         dist = distance(coord, coord)
         if method == '0':
             cov = sigma_sq * np.exp(-phi * dist) + tau_sq * np.eye(n)
@@ -724,7 +725,7 @@ def train_decor_new(model, optimizer, data, epoch_num, theta_hat0, BF = None, sp
         if early_stopping.early_stop:
             print('End at epoch' + str(epoch))
             break
-    return epoch, val_losses, model
+    return theta_hat, epoch, val_losses, model
     #return theta_hat, val_losses, model
 
 #### Evaluation #######################################################################################################

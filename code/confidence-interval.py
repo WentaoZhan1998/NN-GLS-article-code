@@ -130,7 +130,7 @@ for sigma in [1, 5]:
                 patience_half = 10
                 patience = 20
 
-                _, _, model_NNGLS = utils.train_decor_new(model_NNGLS, optimizer, data, 1000, theta_hat0, sparse=Sparse,
+                _, _, _, model_NNGLS = utils.train_decor_new(model_NNGLS, optimizer, data, 1000, theta_hat0, sparse=Sparse,
                                                              Update=True, patience=patience, patience_half=patience_half)
                 Y_hat_NNGLS = model_NNGLS(data.x, data.edge_index).reshape(-1).detach().numpy()
                 residual_NNGLS = data.y - torch.from_numpy(Y_hat_NNGLS)
@@ -214,7 +214,7 @@ for sigma in [1, 5]:
                     patience_half = 10
                     patience = 20
 
-                    _, _, model1 = utils.train_decor_new(model1, optimizer, data_sub_NNGLS, 1000, theta_hat0,
+                    _, _, _, model1 = utils.train_decor_new(model1, optimizer, data_sub_NNGLS, 1000, theta_hat0,
                                                          sparse=Sparse, BF=[I_B_sub, F_diag_sub],
                                                          Update=False, patience=patience, patience_half=patience_half)
 

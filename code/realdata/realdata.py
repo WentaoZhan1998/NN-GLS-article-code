@@ -95,6 +95,10 @@ for name in ['0605', '0618', '0704']: #### "0605", "0618" "0704" corresponding t
         X = normalized_X
         Y = z.reshape(-1)
         coord = s_obs
+        #columns = ['precipitation', 'temperature', 'air pressure', 'relative humidity', 'U-wind', 'V-wind',
+        #           'PM 2.5', 'longitude', 'latitude']
+        #df = pd.DataFrame(data=data, index=range(data.shape[0]), columns=columns)
+        #df.to_csv('Normalized_PM2.5_20190605.csv')
         b = 1
         n = coord.shape[0]
         p = X.shape[1]
@@ -331,7 +335,7 @@ for name in ['0605', '0618', '0704']: #### "0605", "0618" "0704" corresponding t
             patience_half = 10
             patience = 20
 
-            _, _, model_NNGLS = utils.train_decor_new(model_NNGLS, optimizer, data, 1000, theta_hat0, sparse=Sparse,
+            _, _, _, model_NNGLS = utils.train_decor_new(model_NNGLS, optimizer, data, 1000, theta_hat0, sparse=Sparse,
                                                     Update=False, patience=patience, patience_half=patience_half)
             Pred_NNGLS = utils.krig_pred(model_NNGLS, X[~data.test_mask,], X[data.test_mask], Y[~data.test_mask],
                                             coord[~data.test_mask,], coord[data.test_mask,], theta_hat0)
@@ -344,7 +348,7 @@ for name in ['0605', '0618', '0704']: #### "0605", "0618" "0704" corresponding t
             patience_half = 10
             patience = 20
 
-            theta_hat2, _, model_NNGLS2 = utils.train_decor_new(model_NNGLS2, optimizer, data, 1000, theta_hat0, sparse=Sparse,
+            theta_hat2, _, _, model_NNGLS2 = utils.train_decor_new(model_NNGLS2, optimizer, data, 1000, theta_hat0, sparse=Sparse,
                                                           Update=True, patience=patience, patience_half=patience_half,
                                                           Update_method='optimization', Update_init=20, Update_step=20,
                                                           Update_bound=100)

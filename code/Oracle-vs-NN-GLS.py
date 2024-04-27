@@ -156,7 +156,7 @@ for sigma in [1, 5]:
                 patience_half = 10
                 patience = 20
 
-                _, _, model_NNGLS = utils.train_decor_new(model_NNGLS, optimizer, data, 1000, theta_hat0, sparse = Sparse,
+                _, _, _, model_NNGLS = utils.train_decor_new(model_NNGLS, optimizer, data, 1000, theta_hat0, sparse = Sparse,
                                                         Update=True, patience=patience, patience_half=patience_half)
                 Est_MISE_NNGLS = model_NNGLS(X_MISE, edge_index).detach().numpy().reshape(-1)
                 MISE_NNGLS = np.append(MISE_NNGLS, RMSE(Est_MISE_NNGLS, Y_MISE_np.reshape(-1)))
@@ -167,7 +167,7 @@ for sigma in [1, 5]:
                 patience_half = 10
                 patience = 20
 
-                _, _, model_NNGLS_oracle = utils.train_decor_new(model_NNGLS_oracle, optimizer, data, 1000, theta, sparse = Sparse,
+                _, _, _, model_NNGLS_oracle = utils.train_decor_new(model_NNGLS_oracle, optimizer, data, 1000, theta, sparse = Sparse,
                                                         Update=True, patience=patience, patience_half=patience_half)
                 Est_MISE_NNGLS_oracle = model_NNGLS_oracle(X_MISE, edge_index).detach().numpy().reshape(-1)
                 MISE_NNGLS_oracle = np.append(MISE_NNGLS, RMSE(Est_MISE_NNGLS, Y_MISE_np.reshape(-1)))

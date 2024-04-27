@@ -291,7 +291,7 @@ for n in [100, 200, 500, 1000, 2000, 5000, 10000, 20000, 50000, 100000, 200000, 
         patience_half = 10
         patience = 20
 
-        epoch_num_NNGLS, _, model_NNGLS = utils.train_decor_new(model_NNGLS, optimizer, data, max_epoch, theta_hat0,
+        _, epoch_num_NNGLS, _, model_NNGLS = utils.train_decor_new(model_NNGLS, optimizer, data, max_epoch, theta_hat0,
                                                      sparse = Sparse, sparseB = True,
                                                      Update=False, patience=patience, patience_half=patience_half)
         t_NNGLS = time.time() - t_start
